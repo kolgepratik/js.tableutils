@@ -1,0 +1,40 @@
+{
+    "name": "tableutils",
+    "title": "A plugin for making HTML tables more lively and efficient.",
+    "description": "A plugin for HTML Tables. You can - Fix Table Headers with both Vertical and Horizontal Scrolling support, Add master CheckBox, Enable Sorting, Filtering, Client-side and Server-side Numeric, Alphabetic and Alphanumeric Pagination, Addition of new rows to the table, Deletion of exiting rows, Editing of existing rows.",
+    "keywords": [
+        "HTML",
+        "table",
+        "tables",
+      	"fix",
+    		"header",
+    		"sort",
+    		"filter",
+    		"new",
+    		"row",
+    		"addition",
+    		"delete",
+    		"edit",
+    		"update",
+    		"master",
+    		"checkbox",
+    		"pagination",
+    		"client-side",
+    		"server-side"
+    ],
+    "version": "1.0.1",
+    "author": {
+        "name": "Kolge Pratik",
+        "url": "http://kolgepratik.wordpress.com/"
+    },    
+    "licenses": [
+        {
+            "type": "MIT",
+            "url": "http://www.opensource.org/licenses/mit-license.php"
+        }
+    ],    
+    "dependencies": {
+        "jquery": ">=1.5",
+		    "jqueryUI": ">=1.5"
+    }
+}
