@@ -3475,7 +3475,7 @@
 		/**
 		* This is where calls from pages come. Calls requested functions appropriately. 
 		*/ 
-		$.fn.tableUtils = function( method ) {
+		$.fn.tableutils = function( method ) {
 			// If the method parameter is present, then call the method, else call the default method i.e. init. 
 			if( methods[method] ) {
 				return methods[method].apply(this, Array.prototype.slice.call(arguments, 1));
