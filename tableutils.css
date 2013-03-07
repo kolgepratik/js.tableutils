@@ -1,0 +1,173 @@
+@CHARSET "ISO-8859-1";
+
+table.fixedWidth 
+{
+	table-layout: fixed;
+	padding: 0px;
+}
+
+
+table.fixedWidth th, table.fixedWidth td 
+{
+	word-wrap: break-word;
+}
+
+
+span.tableUtils_paginationLinkSelected {
+	background-color: grey;	
+	padding: 5px;
+}
+
+span.tableUtils_paginationLinkSelected a {
+	text-decoration: none;
+	font-weight: bold;
+	color: white;
+}
+
+span.tableUtils_paginationLink {
+	padding: 5px; 
+}
+
+span.tableUtils_messages {
+	align: left;
+}
+
+span.tableUtils_controls {
+	align: right;
+}
+
+tr.tableUtils_rowSelect {
+	cursor: pointer;	
+}
+
+tr.tableUtils_rowSelect:hover {
+	background-color: #96BF86;
+}
+
+div.tableUtils_mainContainer {
+	
+}
+
+div.outer {
+  position: relative;  
+  overflow: none;  
+}
+
+div.header { 
+  position: absolute;	  
+  top: 0px;
+  left: 0px;  
+  z-index: 1; 
+}
+
+div.body { 
+  position: absolute;
+  top:0px;
+  left: 0px;
+  overflow: auto;
+}
+
+td.tableUtils_messages {
+	width: 80%;
+	text-align: right;
+	padding-left: 10px;
+	padding-right: 10px;
+	font-family: serif; 
+	font-size:13px;
+	font-weight: bold;
+	color: #00529B;	
+}
+
+
+td.tableUtils_controls {
+	width: 20%; 
+	align: right;
+}
+
+
+
+table.tableUtils_table {
+	width: 100%;
+	table-layout: fixed;
+}
+
+table.tableUtils_table tbody {
+	/* Kind of irrelevant unless your .css is alreadt doing something else */
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	font-size: 100%;
+	vertical-align: baseline;
+	background: transparent;
+}
+
+table.tableUtils_table thead {
+	border: 1px solid #B0B0B0;
+	text-align: left;
+}
+
+table.tableUtils_table thead tr th {
+	background-color: #90AAC8;
+	border: 1px solid #B0B0B0;
+	color: black;
+	font-size: 15px;
+	font-weight: bold;
+	padding: 3px 10px;
+}
+
+table.tableUtils_table thead th a {	
+	color: black;	
+}
+
+table.tableUtils_table tbody tr td {
+	padding: 3px 10px;
+}
+
+table.tableUtils_table tbody tr:nth-child(even) {
+	background-color: #F2F2F2;
+}
+
+table.tableUtils_table tbody tr:nth-child(odd) {
+	background-color: #D1D1D1;
+}
+
+table.tableUtils_table tbody tr.evenRow {
+	background-color: #F2F2F2;
+}
+
+table.tableUtils_table tbody tr.oddRow {
+	background-color: #D1D1D1;
+}
+
+table.tableUtils_table tbody tr:hover {
+	background-color: #5FBFFA;
+}
+
+table.tableUtils_table tbody tr.tableUtils_selectedRow {
+	background-color: #FFEF12;
+}
+
+img.tableUtils_imageButton {	
+	width: 15px;
+	height: 15px;
+	padding: 2px; 
+	cursor: pointer;
+	border: 2px;
+	border-radius: 4px;
+	border-style: ridge; 
+	vertical-align: middle;	
+}
+
+button.tableUtils_imageButton {
+	background-color: transparent; 
+	border-style: none; 
+}
+
+div.tableUtils_generalInfoDiv {
+	padding: 5px 0px;	
+}
+
+div.tableUtils_paginationDiv {
+	padding: 5px 0px;	
+}
