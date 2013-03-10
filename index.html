@@ -85,14 +85,49 @@
 
 <h3>How to use the plugin</h3>
 
+<p>Create the HTML for table. You don't have to do anything special here. But there are a few things you should know:</p>
+
+<ol>
+<li><p>Specify the width for the table in pixels.</p></li>
+<li><p>Specify the width for each individual column in the table (column width need not be in pixels i.e. you can use percentage width for columns). The widths for the headers and body must match for the plugin to work properly. </p></li>
+<li><p>Specify thead and tbody section in the table. thead will hold the table header and tbody will be the body of the table.  </p></li>
+</ol><p>Apart from this nothing more needs to be special about the table. You see, everything here is just a basic table in HTML. See an example below: </p>
+
+<pre><code>&lt;table id="mySimpleTable" width="800px"&gt;
+    &lt;thead&gt;
+        &lt;tr&gt;
+            &lt;th width="20%"&gt;First Name&lt;/th&gt;
+            &lt;th width="20%"&gt;Last Name&lt;/th&gt;
+            &lt;th width="10%"&gt;Department&lt;/th&gt;
+            &lt;th width="10%"&gt;Age&lt;/th&gt;
+            &lt;th width="40%"&gt;Address&lt;/th&gt;
+        &lt;/tr&gt;
+    &lt;/thead&gt;
+    &lt;tbody&gt;
+        &lt;tr&gt;
+            &lt;td width="20%"&gt;Pratik&lt;/td&gt;
+            &lt;td width="20%"&gt;Kolge&lt;/td&gt;
+            &lt;td width="10%"&gt;IT&lt;/td&gt;
+            &lt;td width="10%"&gt;23&lt;/td&gt;
+            &lt;td width="40%"&gt;Pune, India&lt;/td&gt;
+        &lt;/tr&gt;
+        ... 
+    &lt;/tbody&gt;
+&lt;/table&gt;
+</code></pre>
+
+<p>And then, script the following code: </p>
+
 <pre><code>&lt;script type="text/javascript"&gt;
     $(document).ready(function() {
-        $('#theIDofTable').tableutils( options );
+        $('#mySimpleTable').tableutils( options );
     });
 &lt;/script&gt;
 </code></pre>
 
-<p>You can see a complete list of available options in the <a href="https://github.com/kolgepratik/tableutils/wiki/tableutils-Documentation">Documentation</a></p>
+<p>And there you go, your very simple table transforms into something more lively. Go ahead and explore the awesome features of this plugin. I am sure you would love it. </p>
+
+<p>For a complete list of available options, see the <a href="https://github.com/kolgepratik/tableutils/wiki/tableutils-Documentation">Documentation</a></p>
 
 <h3>A note</h3>
 
