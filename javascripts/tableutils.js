@@ -430,14 +430,14 @@
 				var $clonedTable = $this.clone().attr('id', settings.fixHeaderOptions.fixedHeaderTable);
 				
 				// Width of the table, that will be used by its containers. 
-				settings.fixHeaderOptions.tableWidth = settings.fixHeaderOptions.width;
+				settings.fixHeaderOptions.tableWidth = $('#' + tableID).width();
 				
 				// Apply Styling to the table if not already present. 								
 				$this.addClass('tableUtils_table');
 				$clonedTable.addClass('tableUtils_table');					 
 				
 				// Apply the same width to the fixed header table. 
-				$clonedTable.width($this.width() + 'px');
+				$clonedTable.width(settings.fixHeaderOptions.tableWidth + 'px');
 				
 				// Append the Fixed header table to the Header Container DIV and the Main table to the Body Container DIV. 
 				$fixHeaderDiv.append($clonedTable);				
