@@ -437,7 +437,7 @@
 				$clonedTable.addClass('tableUtils_table');					 
 				
 				// Apply the same width to the fixed header table. 
-				//$clonedTable.width($this.width() + 'px');
+				$clonedTable.width($clonedTable.width() - '5' + 'px');
 				
 				// Append the Fixed header table to the Header Container DIV and the Main table to the Body Container DIV. 
 				$fixHeaderDiv.append($clonedTable);				
