@@ -54,7 +54,8 @@ div.outer {
 }
 
 div.header { 
-  position: absolute;	  
+  position: absolute;
+  width: 100%;
   top: 0px;
   left: 0px;  
   z-index: 1; 
@@ -62,6 +63,7 @@ div.header {
 
 div.body { 
   position: absolute;
+  width: 100%;
   top:0px;
   left: 0px;
   overflow: auto;
