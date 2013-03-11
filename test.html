@@ -10,7 +10,14 @@
 			$('#mySimpleTable').tableutils( {
 				fixHeader: { width: 1000, height: 400 }, 
 				filter: true, 
-				sort: { type: [ 'alphanumeric', 'alphanumeric' , 'alphanumeric', 'numeric', 'alphanumeric'] }
+				sort: { type: [ 'alphanumeric', 'alphanumeric' , 'alphanumeric', 'numeric', 'alphanumeric'] }, 
+				columns: [ 					   
+					   { label: 'First Name' },
+			           { label: 'Last Name' },
+			           { label: 'Department' }, 
+			           { label: 'Age' },
+			           { label: 'Address' }
+		        	]
 			} );
 		});
 </script>
