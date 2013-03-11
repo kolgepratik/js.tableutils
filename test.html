@@ -8,7 +8,9 @@
 	<script type="text/javascript">
 		$(document).ready(function() {
 			$('#mySimpleTable').tableutils( {
-				fixHeader: { width: 1000, height: 400 }
+				fixHeader: { width: 1000, height: 400 }, 
+				filter: true, 
+				sort: { type: [ 'alphanumeric', 'alphanumeric' , 'alphanumeric', 'numeric', 'alphanumeric'] }
 			} );
 		});
 </script>
