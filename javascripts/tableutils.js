@@ -9,8 +9,8 @@
 * http://docs.jquery.com/Plugins/Authoring
 * jQuery authoring guidelines
 *
-* Launch  : Febraury 2013 
-* Version : 1.0
+* Launch  : March 2013 
+* Version : 1.0.5
 */
 
 
@@ -1223,10 +1223,14 @@
 			 *
 			 */
 			paginate: function(tableID) {				
-				// Load table settings. 
-				loadTableSettings(tableID);				
+				loadTableSettings(tableID);
 				
-				// Eligigble rows for pagination. 
+				//var $fixedHeaderTable = $('#' + settings.fixHeaderOptions.fixedHeaderTable);
+								
+				//$(this).wrap('<div style="height: 300px; overflow: auto; " id="' + searchTableID + '_paginateTableDiv"/>');				
+				
+				//$('#' + searchTableID + '_paginateTableDiv').wrap('<div id="' + searchTableID + '_paginateMainDiv"/>');
+				
 				var eligibleRowsSelector = 'tbody tr';
 				if(settings.filterTableOptions.required === true) {
 					eligibleRowsSelector += '.filteredRow';
