@@ -1,5 +1,5 @@
 /*
-* jquery.tableUtils
+* jquery.tableutils
 *
 * Copyright (c) 2013 Kolge Pratik
 *
@@ -10,7 +10,7 @@
 * jQuery authoring guidelines
 *
 * Launch  : March 2013 
-* Version : 1.0.5
+* Version : 1.0.5 
 */
 
 
@@ -3468,13 +3468,13 @@
 			//console.log('Element Position -- ');
 			//console.log('top: ' + $elementOffset.top);
 			//console.log('left: ' + $elementOffset.left);
-		}
+		};
 		
 		applyTableStyling = function(tableID) {
 			$('#' + tableID).find('tbody tr').removeClass('evenRow').removeClass('oddRow');
 			$('#' + tableID).find('tbody tr:even').addClass('evenRow');
 			$('#' + tableID).find('tbody tr:odd').addClass('oddRow'); 
-		}		
+		};		
 		
 		/**
 		* This is where calls from pages come. Calls requested functions appropriately. 
@@ -3486,7 +3486,7 @@
 			} else if ( !method || typeof method === 'object' ) {
 				return methods.init.apply(this, arguments); 
 			} else {
-				$.error('Method ' + method + ' does not exist on jQuery.paginate');
+				$.error('Method ' + method + ' does not exist on jQuery.tableutils');
 			}
 		}; 
 	}
