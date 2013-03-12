@@ -1,7 +1,7 @@
 {
     "name": "tableutils",
-    "title": "tableutils - A plugin for fixing the header and making HTML tables more lively and efficient with horizontal scrolling support.",
-    "description": "A plugin for HTML Tables. You can - Fix Table Headers with both Vertical and Horizontal Scrolling support, Add master CheckBox, Enable Sorting, Filtering, Client-side and Server-side Numeric, Alphabetic and Alphanumeric Pagination, Addition of new rows to the table, Deletion of exiting rows, Editing of existing rows.",
+    "title": "tableutils - A jQuery plugin for fixing the header, client-side and server-side pagination, sorting and searching the tables",
+    "description": "A jQuery plugin for HTML tables. You can - Fix Table Headers with both Vertical and Horizontal Scrolling support, Add master CheckBox, Enable Sorting, Filtering, Client-side and Server-side Numeric, Alphabetic and Alphanumeric Pagination, Addition of new rows to the table, Deletion of exiting rows, Editing of existing rows.",
     "keywords": [        
 		"table",
         "horizontal-scrolling",
@@ -19,8 +19,10 @@
     	"client-side",
     	"server-side"
     ],
-    "version": "1.0.5",
+    "version": "1.0.6",
+	"homepage": "http://kolgepratik.github.com/tableutils/",
 	"docs": "https://github.com/kolgepratik/tableutils/wiki/tableutils-Documentation", 
+	"demo": "http://kolgepratik.github.com/tableutils/demo.html",
     "author": {
         "name": "Kolge Pratik",
         "url": "http://kolgepratik.wordpress.com/"

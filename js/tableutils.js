@@ -1,5 +1,5 @@
 /*
-* jquery.tableUtils
+* jquery.tableutils
 *
 * Copyright (c) 2013 Kolge Pratik
 *
@@ -9,8 +9,8 @@
 * http://docs.jquery.com/Plugins/Authoring
 * jQuery authoring guidelines
 *
-* Launch  : Febraury 2013 
-* Version : 1.0
+* Launch  : March 2013 
+* Version : 1.0.6 
 */
 
 
@@ -21,10 +21,10 @@
 (
 	function( $ ) {
 		
+		// Holds the settings for all the tables being operated on. 
+		var tableSettings = [];
+		
 		var settings = {
-			
-			// Holds the settings for all the tables being operated on. 
-			tableSettings: [],
 
 			// Temporary variable. 
 			tableID: '',
@@ -34,7 +34,7 @@
 			
 			// Options for fixing header. 
 			fixHeaderOptions: { 
-					required: true, 
+					required: false, 
 					height: 200, 
 					width: 600,					
 					messages: [], 
@@ -117,7 +117,7 @@
 			contextRoot: '',
 			
 			// The resources directory that holds the resources required for this plug-in. 
-			resourcesDir: '', 
+			resourcesDir: '/images', 
 			
 			// Page Size. 
 			pageSize: 5,
@@ -157,6 +157,8 @@
 			availablePageSizes: [5, 10, 20, 50, 100]
 		};
 		
+		var defaultSettings = $.extend(true, {}, settings);
+		
 		/**
 		* This variable holds all methods supported by this plugin. 
 		*/
@@ -172,6 +174,8 @@
 				
 					// Table's ID. 
 					var tableID = $(this).attr('id');							
+					
+					loadTableSettings(tableID);
 					
 					// Get the Settings. 
 					$.extend(settings, options);
@@ -207,7 +211,8 @@
 					}	
 					
 					// Get filter options. 
-					if(options.filter) {
+					if(options.filter != null) {
+						//console.log('filtering for: ' + tableID);
 						if(options.filter === true) {
 							$.extend(settings.filterTableOptions, { required: true });
 						} else {
@@ -1095,14 +1100,17 @@
 						} else if(sortTypes[index] === 'numeric') {							
 							$sortElement.on('click', function() {
 								updateSortInfo(tableID, index, 'numeric');
+								return false;
 							});
 						} else if(sortTypes[index] === 'float') {
 							$sortElement.on('click', function() {
 								updateSortInfo(tableID, index, 'float');
+								return false;
 							});
 						} else if(sortTypes[index] === 'alphanumeric') {
 							$sortElement.on('click', function() {
 								updateSortInfo(tableID, index, 'alphanumeric');
+								return false;
 							});								
 						}						
 						
@@ -1129,6 +1137,7 @@
 						// Bind 'click' event handler to the sorting link for this header. 
 						$sortElement.on('click', function() {
 							updateSortInfo(tableID, index, 'alphanumeric');
+							return false;
 						});
 						
 						// Remove any existing content from the header column and append the sorting link to the header column. 
@@ -1223,10 +1232,14 @@
 			 *
 			 */
 			paginate: function(tableID) {				
-				// Load table settings. 
-				loadTableSettings(tableID);				
+				loadTableSettings(tableID);
 				
-				// Eligigble rows for pagination. 
+				//var $fixedHeaderTable = $('#' + settings.fixHeaderOptions.fixedHeaderTable);
+								
+				//$(this).wrap('<div style="height: 300px; overflow: auto; " id="' + searchTableID + '_paginateTableDiv"/>');				
+				
+				//$('#' + searchTableID + '_paginateTableDiv').wrap('<div id="' + searchTableID + '_paginateMainDiv"/>');
+				
 				var eligibleRowsSelector = 'tbody tr';
 				if(settings.filterTableOptions.required === true) {
 					eligibleRowsSelector += '.filteredRow';
@@ -1299,7 +1312,7 @@
 				
 				var $pageSelect = $('<select></select>').attr('id', 'pageSelect_' + tableID);
 				$pageSelect.on('change', function() {
-					goToPage(tableID, $(this).attr('value'));
+					goToPage(tableID, $(this).find('option:selected').val());
 				});
 				
 				$paginationStats.append($gotoPage, $pageSelect); 
@@ -1596,7 +1609,7 @@
 					var $deleteRecordsButtonsDiv = $('<span></span>').attr('id', 'deleteRecordsAdditionalControls_' + tableID);
 					
 					var $deleteButton = $('<button type="button"></button>').attr('id', 'deleteRecordButton_' + tableID).addClass('tableUtils_imageButton');
-					$deleteButton.append($('<img title="Delete" alt="Delete">').attr('src', settings.contextRoot + settings.resourcesDir + '/rmv2.png').addClass('tableUtils_imageButton'));
+					$deleteButton.append($('<img title="Delete" alt="Delete">').attr('src', settings.contextRoot + settings.resourcesDir + '/delete1.png').addClass('tableUtils_imageButton'));
 					
 					$deleteButton.on('click', function() {
 						$mainTable.trigger('deleteRecords');					
@@ -1626,7 +1639,7 @@
 				
 				$editButton.append($('<img alt="Edit" title="Edit">').attr('src', settings.contextRoot + settings.resourcesDir + '/edit1.png').addClass('tableUtils_imageButton'));
 				$saveEditButton.append($('<img alt="Save Edited Record" title="Save">').attr('src', settings.contextRoot + settings.resourcesDir + '/ok1.png').addClass('tableUtils_imageButton'));
-				$cancelEditButton.append($('<img alt="Cancel" title="Cancel">').attr('src', settings.contextRoot + settings.resourcesDir + '/no3.png').addClass('tableUtils_imageButton'));
+				$cancelEditButton.append($('<img alt="Cancel" title="Cancel">').attr('src', settings.contextRoot + settings.resourcesDir + '/no1.png').addClass('tableUtils_imageButton'));
 				
 				$editButton.on('click', function() {
 					$mainTable.trigger('startEditRow');
@@ -1951,9 +1964,9 @@
 				var $saveButton = $('<button type="button"></button>').attr('id', 'newRowSaveButton_' + tableID).addClass('tableUtils_imageButton').hide();
 				var $cancelButton = $('<button type="button"></button>').attr('id', 'newRowCancelButton_' + tableID).addClass('tableUtils_imageButton').hide();
 				
-				$addButton.append($('<img alt="New">').attr('title', addButtonLabel).attr('src', settings.contextRoot + settings.resourcesDir + '/add7.png').addClass('tableUtils_imageButton'));
+				$addButton.append($('<img alt="New">').attr('title', addButtonLabel).attr('src', settings.contextRoot + settings.resourcesDir + '/add5.png').addClass('tableUtils_imageButton'));
 				$saveButton.append($('<img alt="Save" title="Save">').attr('src', settings.contextRoot + settings.resourcesDir + '/ok1.png').addClass('tableUtils_imageButton'));
-				$cancelButton.append($('<img alt="Cancel" title="Cancel">').attr('src', settings.contextRoot + settings.resourcesDir + '/no3.png').addClass('tableUtils_imageButton'));
+				$cancelButton.append($('<img alt="Cancel" title="Cancel">').attr('src', settings.contextRoot + settings.resourcesDir + '/no2.png').addClass('tableUtils_imageButton'));
 				
 				$addButton.on('click', function() {
 					$searchTable.trigger('startNewRowInsert');
@@ -2320,9 +2333,9 @@
 		
 		
 		saveTableSettings = function(tableID) {
-			for(var i=0; i<settings.tableSettings.length; i++) {
-				if(settings.tableSettings[i].tableID === tableID) {					
-					settings.tableSettings.splice(i,1);
+			for(var i=0; i<tableSettings.length; i++) {
+				if(tableSettings[i].tableID === tableID) {					
+					tableSettings.splice(i,1);
 				}
 			} 
 			
@@ -2343,7 +2356,7 @@
 			settingsForTable.resourcesDir = settings.resourcesDir;	
 			settingsForTable.buttons = settings.buttons;
 						
-			settings.tableSettings[settings.tableSettings.length] = settingsForTable;
+			tableSettings[tableSettings.length] = settingsForTable;			
 		};
 		
 		
@@ -2353,10 +2366,12 @@
 			var settingsForTable = {};
 			var settingsFound = false;
 			
-			for(var i=0; i<settings.tableSettings.length; i++) {
-				if(settings.tableSettings[i].tableID === tableID) {
-					settingsForTable = settings.tableSettings[i];
+			for(var i=0; i<tableSettings.length; i++) {
+				if(tableSettings[i].tableID === tableID) {
+					settingsForTable = tableSettings[i];
 					settingsFound = true;
+					//console.log('Settings found: ' + settingsForTable.tableID + ' - ' + tableID);
+					break;
 					//console.log('Settings found: ' + settingsForTable.tableID);
 				}
 			}
@@ -2380,7 +2395,8 @@
 				
 				return true;
 			} else {
-				//console.log('Settings not found for table: ' + tableID);
+				settings = $.extend(true, {}, defaultSettings);
+				//console.log('Settings not found for table: ' + tableID + '. Default settings tableID: ' + settings.tableID + ' - ' + settings.fixHeaderOptions.fixedHeaderTable);
 				return false;
 			}
 			
@@ -2801,19 +2817,19 @@
 				$(this).attr('checked', isMasterCheckBoxChecked);
 				//console.log('toggling');
 				if(isMasterCheckBoxChecked) {
-					$(this).parent().parent().addClass('tableUtils_selectedRow');					
+					$(this).closest('tr').addClass('tableUtils_selectedRow');					
 				} else {
-					$(this).parent().parent().removeClass('tableUtils_selectedRow');
+					$(this).closest('tr').removeClass('tableUtils_selectedRow');
 				}
 			}); 
 
 			updateSelectedRecords(tableID);	
 			
-			if(isMasterCheckBoxChecked === true) {
+			/*if(isMasterCheckBoxChecked === true) {
 				$('#' + settings.masterCheckBoxOptions.masterCheckBox).trigger('showControls');			
 			} else {				
 				$('#' + settings.masterCheckBoxOptions.masterCheckBox).trigger('hideControls');					
-			}
+			}*/
 
 			saveTableSettings(tableID);
 		};
@@ -2872,8 +2888,10 @@
 			
 		updatePageSize = function(tableID) {
 			loadTableSettings(tableID);
-			settings.paginationOptions.pageSize = $('#pageSizeSelect_' + tableID).attr('value');
-			$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false).trigger('hideControls');			
+			settings.paginationOptions.pageSize = $('#pageSizeSelect_' + tableID).find('option:selected').val();
+			if(settings.masterCheckBoxOptions.required === true) {
+				$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false).trigger('hideControls');
+			}
 			//console.log('new page size: ' + settings.pageSize);
 			saveTableSettings(tableID);
 			
@@ -2980,7 +2998,8 @@
 								
 				var $prevLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'prevLink_' + tableID);
 				var $prevLink = $('<a href="#">Prev</a>');
-				$prevLink.on('click', function() {
+				$prevLink.on('click', function(e) {
+					e.preventDefault();
 					previousPage(tableID);
 				});
 				$prevLinkContent.append($prevLink);				
@@ -2991,7 +3010,7 @@
 					
 					//console.log('creating page link: ' + page);
 					var $pageLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'paginationPage_' + tableID + '_' + page);
-					var $pageLink = $('<a href="#" onclick="goToPage(\'' + tableID + '\', '+ page + ')">' + page + '</a>');
+					var $pageLink = $('<a href="#" onclick="return goToPage(\'' + tableID + '\', '+ page + ');">' + page + '</a>');
 					
 					$pageLinkContent.append($pageLink);				
 					$links.append($pageLinkContent);						
@@ -3001,7 +3020,8 @@
 				
 				var $nextLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'nextLink_' + tableID);
 				var $nextLink = $('<a href="#">Next</a>');
-				$nextLink.on('click', function() {
+				$nextLink.on('click', function(e) {
+					e.preventDefault();
 					nextPage(tableID);
 				});
 				$nextLinkContent.append($nextLink);				
@@ -3030,7 +3050,8 @@
 				
 				var $prevLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'prevLink_' + tableID);
 				var $prevLink = $('<a href="#">Prev</a>');
-				$prevLink.on('click', function() {
+				$prevLink.on('click', function(e) {
+					e.preventDefault();
 					previousPage(tableID);
 				});
 				$prevLinkContent.append($prevLink);				
@@ -3040,7 +3061,7 @@
 				for(var page=1; page<=numberOfPageLinks; page++) {
 					
 					var $pageLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'paginationPage_' + tableID + '_' + page);
-					var $pageLink = $('<a href="#" onclick="goToPage(\'' + tableID + '\', '+ page + ')">' + settings.paginationOptions.pageMappings[page] + '</a>');
+					var $pageLink = $('<a href="#" onclick="return goToPage(\'' + tableID + '\', '+ page + ');">' + settings.paginationOptions.pageMappings[page] + '</a>');
 					
 					$pageLinkContent.append($pageLink);				
 					$links.append($pageLinkContent);						
@@ -3050,7 +3071,8 @@
 				
 				var $nextLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'nextLink_' + tableID);
 				var $nextLink = $('<a href="#">Next</a>');
-				$nextLink.on('click', function() {
+				$nextLink.on('click', function(e) {
+					e.preventDefault();
 					nextPage(tableID);
 				});
 				$nextLinkContent.append($nextLink);				
@@ -3103,7 +3125,8 @@
 				}
 				applyTableStyling(tableID); 
 			}
-		}
+			return false;
+		};
 		
 		
 		showPage = function(tableID, pageNumber) {
@@ -3423,6 +3446,8 @@
 			//console.log('Total msgs in queue: ' + numMsgs);
 			
 			var $messagesArea = $('#' + settings.fixHeaderOptions.messagesArea);
+			//console.log('messagesArea for: ' + tableID + ' - ' + settings.fixHeaderOptions.messagesArea);
+			
 			
 			if(numMsgs > 0) {		
 				var nextMsgIndex = settings.fixHeaderOptions.nextMessageIndex;
@@ -3464,13 +3489,13 @@
 			//console.log('Element Position -- ');
 			//console.log('top: ' + $elementOffset.top);
 			//console.log('left: ' + $elementOffset.left);
-		}
+		};
 		
 		applyTableStyling = function(tableID) {
 			$('#' + tableID).find('tbody tr').removeClass('evenRow').removeClass('oddRow');
 			$('#' + tableID).find('tbody tr:even').addClass('evenRow');
 			$('#' + tableID).find('tbody tr:odd').addClass('oddRow'); 
-		}		
+		};		
 		
 		/**
 		* This is where calls from pages come. Calls requested functions appropriately. 
@@ -3482,7 +3507,7 @@
 			} else if ( !method || typeof method === 'object' ) {
 				return methods.init.apply(this, arguments); 
 			} else {
-				$.error('Method ' + method + ' does not exist on jQuery.paginate');
+				$.error('Method ' + method + ' does not exist on jQuery.tableutils');
 			}
 		}; 
 	}

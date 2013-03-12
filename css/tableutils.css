@@ -36,6 +36,7 @@ span.tableUtils_controls {
 	align: right;
 }
 
+
 tr.tableUtils_rowSelect {
 	cursor: pointer;	
 }
@@ -50,56 +51,51 @@ div.tableUtils_mainContainer {
 
 div.outer {
   position: relative;  
-  overflow: none;  
+  overflow: hidden;
+  border: 2px solid #49678A; 
 }
 
 div.header { 
   position: absolute;	  
   top: 0px;
-  left: 0px;  
-  z-index: 1; 
+  left: 0px;
+  float: left;
+  width: auto;  
+  z-index: 1;
 }
 
 div.body { 
   position: absolute;
   top:0px;
-  left: 0px;
   overflow: auto;
+  border-top: 1px solid black;
+  clear: both;
+  width: 100%;
+  height: 100%;
 }
 
-td.tableUtils_messages {
-	width: 80%;
+
+td.tableUtils_messages {	
 	text-align: right;
 	padding-left: 10px;
 	padding-right: 10px;
-	font-family: serif; 
-	font-size:13px;
+	font-family: sans-serif; 
+	font-size:12px;
 	font-weight: bold;
 	color: #00529B;	
 }
 
 
-td.tableUtils_controls {
-	width: 20%; 
+td.tableUtils_controls {	
 	align: right;
 }
 
-
-
-table.tableUtils_table {
-	width: 100%;
-	table-layout: fixed;
+td.tableUtils_userControls {
+	align: left;
 }
 
-table.tableUtils_table tbody {
-	/* Kind of irrelevant unless your .css is alreadt doing something else */
-	margin: 0;
-	padding: 0;
-	border: 0;
-	outline: 0;
-	font-size: 100%;
-	vertical-align: baseline;
-	background: transparent;
+table.tableUtils_table {	
+	table-layout: fixed;
 }
 
 table.tableUtils_table thead {
@@ -111,17 +107,20 @@ table.tableUtils_table thead tr th {
 	background-color: #90AAC8;
 	border: 1px solid #B0B0B0;
 	color: black;
-	font-size: 15px;
+	font-size: 13px;
 	font-weight: bold;
 	padding: 3px 10px;
 }
 
-table.tableUtils_table thead th a {	
+table.tableUtils_table thead tr th a {	
 	color: black;	
 }
 
 table.tableUtils_table tbody tr td {
+	color: black;
+	font-size: 12px;
 	padding: 3px 10px;
+	word-wrap: break-word;
 }
 
 table.tableUtils_table tbody tr:nth-child(even) {
@@ -149,19 +148,26 @@ table.tableUtils_table tbody tr.tableUtils_selectedRow {
 }
 
 img.tableUtils_imageButton {	
-	width: 15px;
-	height: 15px;
+	width: 20px;
+	height: 20px;
 	padding: 2px; 
-	cursor: pointer;
-	border: 2px;
-	border-radius: 4px;
-	border-style: ridge; 
+	cursor: pointer;	
+	border: none;
 	vertical-align: middle;	
 }
 
 button.tableUtils_imageButton {
 	background-color: transparent; 
 	border-style: none; 
+}
+
+button.tableUtils_imageButton img {
+	width: 25px;
+	height: 25px;
+	padding: 2px; 
+	cursor: pointer;
+	border: none;
+	vertical-align: middle;	
 }
 
 div.tableUtils_generalInfoDiv {
