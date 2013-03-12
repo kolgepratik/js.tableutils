@@ -5,5 +5,7 @@ A jQuery plugin for HTML Tables. You can - Fix Table Headers with both Vertical 
 
 
 Home page: http://kolgepratik.github.com/tableutils/
+
 Documentation: https://github.com/kolgepratik/tableutils/wiki/tableutils-Documentation
+
 Demo: http://kolgepratik.github.com/tableutils/demo.html
