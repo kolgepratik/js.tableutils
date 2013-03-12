@@ -10,7 +10,7 @@
 * jQuery authoring guidelines
 *
 * Launch  : March 2013 
-* Version : 1.0.5 
+* Version : 1.0.6 
 */
 
 
