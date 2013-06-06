@@ -19,7 +19,7 @@
     	"client-side",
     	"server-side"
     ],
-    "version": "1.0.6",
+    "version": "1.1.0",
 	"homepage": "http://kolgepratik.github.com/tableutils/",
 	"docs": "https://github.com/kolgepratik/tableutils/wiki/tableutils-Documentation", 
 	"demo": "http://kolgepratik.github.com/tableutils/demo.html",
@@ -34,7 +34,7 @@
         }
     ],    
     "dependencies": {
-        "jquery": ">=1.5",
-		    "jqueryUI": ">=1.5"
+        "jquery": ">=1.6",
+		    "jqueryUI": ">=1.6"
     }
 }
