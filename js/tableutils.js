@@ -9,8 +9,8 @@
 * http://docs.jquery.com/Plugins/Authoring
 * jQuery authoring guidelines
 *
-* Launch  : March 2013 
-* Version : 1.0.6 
+* Launch  : June 2013 
+* Version : 1.1.0
 */
 
 
@@ -29,6 +29,9 @@
 			// Temporary variable. 
 			tableID: '',
 			
+			// Disables console msgs
+			printLog: true,
+			
 			// Holds the information about all the columns on a table. 
 			columns: [],
 			
@@ -37,6 +40,7 @@
 					required: false, 
 					height: 200, 
 					width: 600,					
+					disableMessages: false,
 					messages: [], 
 					nextMessageIndex: 0,
 					messageLoop: {},
@@ -60,13 +64,15 @@
 					customFilterType: false, 
 					type: 'text', 
 					activeFilters: [],
+					fetchDelayTimeOut: 500,
+					fetchDelayTimer: null, 
 					message: { type: 'filterTable', message: '' }
 				},
 			
 			// Options for mastercheckbox. 
 			masterCheckBoxOptions: {
 					required: false,
-					columnNumber: 1,
+					columnIndex: 1,
 					message: { type: 'masterCheckBox', message: '' }
 				},
 			
@@ -88,13 +94,16 @@
 					pageSize: 10,
 					type: 'numeric', 
 					serverSide: false, 
-					columnIndex: -1,
+					columnIndex: 1,					
 					pageMappings: [ 
 						'-', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 
 						'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 
 						'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', 
 						'3', '4', '5', '6', '7', '8', '9' 
 					],
+					preserveSelection: false, 
+					previouslySelectedRecords: [], 
+					resetPreviousSelection: false, 
 					message: { type: 'pagination', message: '' }					
 				},
 			
@@ -168,19 +177,19 @@
 			* Initializes the options and sets up some basic things. 
 			*/
 			init: function(options) {
-				//console.log('Init function.');
 				
-				if($(this) != null) {
+				logOnConsole('Init function.');
 				
-					// Table's ID. 
+				startTimer('init');
+				
+				if(this[0] != null) {
+				
 					var tableID = $(this).attr('id');							
 					
 					loadTableSettings(tableID);
 					
-					// Get the Settings. 
 					$.extend(settings, options);
 					
-					// Get the Context Root of the Application. 
 					settings.contextRoot = methods.getContextRoot();
 					
 					// Get fix header options. 
@@ -212,7 +221,7 @@
 					
 					// Get filter options. 
 					if(options.filter != null) {
-						//console.log('filtering for: ' + tableID);
+						logOnConsole('filtering for: ' + tableID);
 						if(options.filter === true) {
 							$.extend(settings.filterTableOptions, { required: true });
 						} else {
@@ -307,9 +316,7 @@
 					}
 					
 					// Mastercheckbox. 
-					if(options.masterCheckBox) {
-						methods.masterCheckBox(tableID);
-					}
+					methods.masterCheckBox(tableID);
 					
 					// Pagination. 
 					if(options.paginate) {
@@ -332,9 +339,98 @@
 					}
 					
 					// Clean Up. 
-					methods.finalSteps(tableID);
+					methods.finalSteps(tableID);					
+					
+				} else {
+					logOnConsole('No table found.');
 				}
 				
+				stopTimer('init');
+			},
+			
+			
+			/**
+			* Generates a table dynamically. 
+			*/
+			buildDynamicTable: function(options) {
+				var $table = $(this);
+				
+				var columns = new Array();
+				
+				// Make an ajax call to fetch the page. 
+				$.ajax({
+				
+					url: options.loadURL, 
+					
+					data: options.params,	
+					
+					beforeSend: function() {	
+						startTimer('buildDynamicTable ajax call');
+					}, 	
+					
+					success: function(data) {
+						stopTimer('buildDynamicTable ajax call');
+						
+						startTimer('buildDynamicTable process fetched records');
+						
+						var numOfColumns = data.columns.length;
+						
+						/* Create the column object. */
+						var column = null;
+						for(var i=0; i<numOfColumns; i++) {
+							var c = data.columns[i];
+							
+							if(options.ignoreColumns) {
+								if($.inArray(c.name, options.ignoreColumns) === -1) {
+									column = new Object();
+									column.label = c.name.split('_').join(' ');
+									column.name = Number(i) + 1;
+									column.value = c.name;
+									column.type = c.type;
+									
+									columns.push(column);
+								}
+							} else {
+								column = new Object();
+								column.label = c.name.split('_').join(' ');
+								column.name = Number(i) + 1;
+								column.value = c.name;
+								column.type = c.type;
+																
+								columns.push(column);
+							}
+						}
+						
+						/* Generate the table headers using the columns array. */						
+						$table.append($('<thead></thead>'));
+						var $tr = $('<tr></tr>');
+						for(var i=0; i<columns.length; i++) {
+							$tr.append($('<th>' + columns[i].label + '</th>'));
+						}	
+						$table.find('thead').append($tr);
+						
+						$table.append($('<tbody></tbody>'));
+						
+						stopTimer('buildDynamicTable process fetched records');
+						
+						/* Call the User's handler. */
+						options.success(columns);
+					}, 
+
+					error: function(xhr, textStatus, error) {
+						alert('The following error occurred while Building the table: ' + getAjaxErrorDescription(xhr, textStatus, error));
+					},
+					
+					complete: function() {					
+						if(options.complete) {
+							options.complete(columns);
+						}
+					},
+					
+					dataType: 'json',
+					
+					cache: false
+				});	
 			},
 			
 			
@@ -352,6 +448,10 @@
 					$('#outermostDiv_' + tableID).show();
 				});
 				
+				addProgessBar(tableID);
+				
+				hideProgess(tableID);
+				
 				applyTableStyling(tableID);
 			},
 			
@@ -360,55 +460,23 @@
 			 * Returns the Context Root for the Application. 
 			 */
 			getContextRoot: function() {
-				//console.log('Getting the context root.');	
+				var basePath = window.location.pathname.split('/')[1];
 				
-				// Get the URL. 
-				var url = window.location.href;
+				// Build the context path. 
+				var root = window.location.protocol + "//" + window.location.host + "/" + basePath;
 				
-				// Identify the Context Root from the URL. 
-				var exp = new RegExp('(http://)[0-9a-zA-Z\.\:]*\/[0-9a-zA-Z\.]*\/');
-				
-				// Extract the Context Root from the URL. 
-				var matches = exp.exec(url);
-				
-				if(matches == null) {
-					exp = new RegExp('(https://)[0-9a-zA-Z\.\:]*\/[0-9a-zA-Z\.]*\/');
-					matches = exp.exec(url);
-				} 
-				
-				// Get the 1st match. 
-				var root = matches[0];
-				
-				// Return the Root. 
-				return root.substring(0, root.length - 1); 
+				return root;
 			}, 
 			
 			
 			/**
 			 * Fixes the header for the table. 
-			 * 
-			 * DOM structure after fixing the header. 
-			 * 
-			 * +--- Actual Container of the table 
-			 *    +
-			 *    +--- Main Container 
-			 *       +
-			 *       +--- Messages and Controls Area Container 
-			 *       +
-			 *       +--- Main Table Container (Relatively Positioned, Overflow: Hidden.)
-			 *       +   +   
-			 *       +   +--- Header Table Container (Absolutely Positioned, Overflow: None.)
-			 *       +   +
-			 *       +   +--- Body Table Container (Absolutely Positioned, Overflow: Auto.)
-			 *       +
-			 *       +--- Pagination Controls and Info Container (Optional. Added when paginating the table.). 
-			 * 
-			 * Options: 
-			 *    - height: The Height of the table (in pixels). 
-			 *    - width: The Width of the table (in pixels). 
+			 *  
 			 */			
 			fixHeader: function(tableID) {
-				//console.log('Fixing header for: ' + tableID);	
+				logOnConsole('Fixing header for: ' + tableID);	
+				
+				startTimer('fixHeader');
 				
 				// Load table settings. 
 				loadTableSettings(tableID);
@@ -416,8 +484,11 @@
 				// This is the ID of the Table that contains the Fixed Header. 
 				settings.fixHeaderOptions.fixedHeaderTable = 'fixedHeader_' + tableID;
 				
+				startTimer('cloning table');				
+				var $mainTable = $('#' + tableID);
 				// Clone the current table. 
-				var $this = $('#' + tableID).clone();
+				var $this = $mainTable;//.clone();
+				stopTimer('cloning table');
 				
 				// The Main Container DIV. 
 				var $outerMostDiv = $('<div></div>').attr('id', 'outermostDiv_' + tableID).addClass('tableUtils_mainContainer');
@@ -431,8 +502,11 @@
 				// The Main table container DIV. 
 				var $mainTableDiv = $('<div id="mainTableWrapper_' + tableID + '"></div>').addClass('body');
 								
+				startTimer('cloning header table');
 				// The fixed header table. 
-				var $clonedTable = $this.clone().attr('id', settings.fixHeaderOptions.fixedHeaderTable);
+				var $clonedTable = $($this[0].cloneNode()).attr('id', settings.fixHeaderOptions.fixedHeaderTable);
+				$clonedTable.append($this.find('thead').clone());
+				stopTimer('cloning header table');
 				
 				// Width of the table, that will be used by its containers. 
 				settings.fixHeaderOptions.tableWidth = settings.fixHeaderOptions.width;
@@ -441,16 +515,16 @@
 				$this.addClass('tableUtils_table');
 				$clonedTable.addClass('tableUtils_table');					 
 				
-				// Apply the same width to the fixed header table. 
-				//$clonedTable.width($this.width() + 'px');
+				var $tempTable = $($this[0].cloneNode());
+				$tempTable.append($('<tbody></tbody>'));
 				
 				// Append the Fixed header table to the Header Container DIV and the Main table to the Body Container DIV. 
 				$fixHeaderDiv.append($clonedTable);				
-				$mainTableDiv.append($this);
+				$mainTableDiv.append($tempTable);
 				
-				// Remove the Head Section from the Main table and Body Section from the Cloned Table. 
-				$this.find('thead').remove();
-				$clonedTable.find('tbody').remove();				
+				startTimer('removing headers and body');
+				fastEmpty($this.find('thead'));
+				stopTimer('removing headers and body');				
 				
 				// Append the fix header and body containers to the Main Table Container DIV. 
 				$innerDiv.append($fixHeaderDiv);
@@ -458,7 +532,6 @@
 				
 				// Append the main table container to the Main Container DIV. 
 				$outerMostDiv.append($innerDiv);
-				
 								
 				// The General Info and Additional Controls DIV (Same width as the main table's width.).
 				var $generalInfoDiv = $('<div></div>').attr('id', 'generalInfo_' + tableID).addClass('tableUtils_generalInfoDiv').width(settings.fixHeaderOptions.width);
@@ -475,11 +548,12 @@
 				// The messages area. 
 				var $messageContent = $('<td></td>').attr('id', 'generalMessage_' + tableID).addClass('tableUtils_messages').hide();				
 				
-				// Append the areas to the General Info Container table and append the table to the Container DIV. 
-				$generalInfoTable.append('<tr></tr>');
-				$generalInfoTable.find('tr').append($userControlsContent);
-				$generalInfoTable.find('tr').append($additionalControlsContent);
-				$generalInfoTable.find('tr').append($messageContent);				
+				// Append the areas to the General Info Container table and append the table to the Container DIV. 				
+				$generalInfoTable.append('<tr class="tableUtils_controls_container"></tr>');
+				$generalInfoTable.append('<tr class="tableUtils_messages_container"></tr>');
+				$generalInfoTable.find('tr.tableUtils_controls_container').append($userControlsContent);
+				$generalInfoTable.find('tr.tableUtils_controls_container').append($additionalControlsContent);
+				$generalInfoTable.find('tr.tableUtils_messages_container').append($messageContent);				
 				$generalInfoDiv.append($generalInfoTable);			
 
 				// Prepend the General Info and Additional Controls DIV to the Main Container DIV. 
@@ -492,7 +566,7 @@
 				
 				// Hide the Messages area if messages are disabled. 
 				if(settings.disableMessages === true) {
-					$generalInfoDiv.hide();
+					settings.fixHeaderOptions.disableMessages = true;
 				} else {				
 					// Create the messages loop. 
 					settings.fixHeaderOptions.messageLoop = setInterval( function() {
@@ -500,10 +574,18 @@
 						}, settings.fixHeaderOptions.messageLoopInterval );
 				}
 				
-				
+				startTimer('relacing tables');
 				// Replace the main table with the Main Container DIV. 
-				$('#' + tableID).replaceWith($outerMostDiv);
+				//$mainTable.replaceWith($outerMostDiv);
+				fastReplace($mainTable[0], $outerMostDiv[0]);
 				
+				var $newTable = $.id(tableID);
+				var allTableRows = backupRows($this);
+				restoreTable(allTableRows, $newTable[0]);
+				
+				$this = $newTable;
+				
+				stopTimer('relacing tables');
 
 				// Horizontally scroll the Header DIV alongwith the BODY DIV. 
 				$mainTableDiv.scroll(function (e) {				  
@@ -516,7 +598,7 @@
 				// Create a handler for the event when the main table's header is updated (i.e. when the Header table's DOM is manipulated.). This is just to adjust the 'top' property of the Main Table Container DIV. 								
 				$this.on('tableHeaderUpdated', function() {
 					// The table's ID. 
-					var tableID = $this.attr('id');
+					var tableID = this.getAttribute('id');
 					
 					// Load table settings. 
 					loadTableSettings(tableID);
@@ -525,7 +607,7 @@
 					var fixHeaderWrapperHeight = $('#' + settings.fixHeaderOptions.fixedHeaderTable).height();
 					$('#mainTableWrapper_' + tableID).css('top', fixHeaderWrapperHeight + 'px').height((settings.fixHeaderOptions.height - fixHeaderWrapperHeight - 5) + 'px');
 					
-					//console.log('Table Header was Updated.');
+					logOnConsole('Table Header was Updated.');
 				});
 				
 				
@@ -535,16 +617,16 @@
 					var $this = $(this);
 					
 					// The table's ID. 
-					var tableID = $this.attr('id');
+					var tableID = this.id;
 										
-					//console.log('Updating table: ' + tableID);
+					logOnConsole('Updating table: ' + tableID);
 					
 					// Load table settings. 
 					loadTableSettings(tableID);
 					
 					// Rowselect. 
 					if(settings.rowSelectOptions.required === true) {
-						//console.log('Updating rowSelect');
+						logOnConsole('Updating rowSelect');
 						methods.rowSelect(tableID);
 					}
 					
@@ -555,39 +637,38 @@
 					
 					// Filter table. 
 					if(settings.filterTableOptions.required === true) {
-						//console.log('Updating filter');
-						$this.find('tbody tr').addClass('filteredRow');
+						logOnConsole('Updating filter');
+						fastAddClass($this.find('tbody tr').get(), 'filteredRow');
 					}
 					
-					// Mastercheckbox. 
+					logOnConsole('Updating mastercheckbox');
+					
 					if(settings.masterCheckBoxOptions.required === true) {
-						//console.log('Updating mastercheckbox');
-						
-						// The table object. 
-						var $this = $(this);
-						
-						// Get the Children checkboxes. 
-						var $childCheckBoxes = $this.find('tbody tr td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ') input:checkbox');
-				
-						// Add 'change' event handler to the checkbox in each row of the table.
-						$childCheckBoxes.each(function() {						
-							// Add the 'change' handler to the checkbox. 
-							$(this).on('change', function() {
-								if($(this).is(':checked')) {
-									$(this).closest('tr').addClass('tableUtils_selectedRow');
-								} else {
-									$(this).closest('tr').removeClass('tableUtils_selectedRow');
-								}								
-								childCheckBoxToggledHandler(tableID);						
-							});					
-						});
+						$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false);
 					}
+					
+					// Get the Children checkboxes. 
+					var $childCheckBoxes = $(this).find('tbody tr td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ') input:checkbox');
+			
+					// Add 'change' event handler to the checkbox in each row of the table.
+					$childCheckBoxes.each(function() {						
+						// Add the 'change' handler to the checkbox. 
+						$(this).on('change', function() {
+							var $this = $(this);
+							if($this.is(':checked')) {
+								$this.closest('tr').addClass('tableUtils_selectedRow');
+							} else {
+								$this.closest('tr').removeClass('tableUtils_selectedRow');
+							}								
+							childCheckBoxToggledHandler(tableID, this);						
+						});					
+					});
 					
 					// Pagination. 
 					if(settings.paginationOptions.required === true) {
-						//console.log('Updating pagination');
+						logOnConsole('Updating pagination');
 						
-						$this.find('tbody tr').addClass('currentPageRow');
+						fastAddClass($this.find('tbody tr').get(), 'currentPageRow');
 					}
 				});
 				
@@ -600,7 +681,6 @@
 					
 					$('#' + settings.fixHeaderOptions.fixedHeaderTable).attr('disabled', true);
 					$('#' + tableID).attr('disabled', true);
-					//$('#generalInfo_' + tableID).attr('disabled', true);
 					
 					if(settings.paginationOptions.required === true) {
 						$('paginationDiv_' + tableID).attr('disabled', true);
@@ -616,7 +696,6 @@
 					
 					$('#' + settings.fixHeaderOptions.fixedHeaderTable).attr('disabled', false);
 					$('#' + tableID).attr('disabled', false); 
-					//$('#generalInfo_' + tableID).attr('disabled', false);
 					
 					if(settings.paginationOptions.required === true) {
 						$('paginationDiv_' + tableID).attr('disabled', false);
@@ -629,7 +708,8 @@
 				
 				// Save table settings. 
 				saveTableSettings(tableID); 
-				
+								
+				stopTimer('fixHeader');
 			},
 			
 			
@@ -637,7 +717,9 @@
 			* Add user controls to the table. 
 			*/
 			addButtons: function(tableID) {
-				//console.log('Adding user controls for: ' + tableID);	
+				logOnConsole('Adding user controls for: ' + tableID);	
+				
+				startTimer('add buttons');
 				
 				// Load table settings. 
 				loadTableSettings(tableID);
@@ -687,49 +769,20 @@
 						// Append the button to the user controls area. 
 						$userControlsArea.append($newButton);						
 					}
-				});				
+				});	
+
+				stopTimer('add buttons');				
 			},
 			
 			
 			/**
 			 * Generate filters for the table. 
 			 * 
-			 * Options: 
-			 *    - type.			 
-					Description: The type of filter for each column. 
-			 *      
-					Datatype: Array. 
-					
-					Possible values: 
-					   - text.
-						 Description: Simple Text filter. 
-						 
-					     Datatype: String. 
-						 
-					   - dateFilter.
-						 Description: Date Filter (uses jQuery UI's DatePicker Widget.). 
-						 
-					     Datatype: String / Object.
-						 If the Datatype is an Object, the whole Object is passed as a parameter to the jQuery UI's DatePicker widget. 
-						 
-					   - select.
-					     Description: Use a Drop-down list as a filter.
-						 
-						 Datatype: Object. 
-						 Properties: 
-							- type.
-							  Description: Value of type property should be 'select'.
-							  
-							  Datatype: String.
-							  
-							- options: []
-							  
-			 *    - width: The Width of the table (in pixels). 
-			 * 
-			 * 
 			 */	
 			filterTable: function(tableID) {
-				//console.log('Filtering for: ' + tableID);	
+				logOnConsole('Filtering for: ' + tableID);	
+				
+				startTimer('filter');
 				
 				// Load table settings. 
 				loadTableSettings(tableID);
@@ -804,12 +857,10 @@
 									}
 									
 									selectOptions.sort(optionsSortFunction);
-									
 								} else {								
 									// Else, add the values specified in the 'selectOptions' property to the Drop-down list. 
 									selectOptions = columnTypes[index].options.selectOptions;									
 								}
-								
 								
 								// Add each filter value to the Drop-down filter. 
 								$.each(selectOptions, function(index, option) {
@@ -818,7 +869,6 @@
 										value: option.value
 									}));
 								});
-									
 									
 								// Bind 'change' event handler to the Drop-down filter. 
 								$filterElement.on('change', function() {
@@ -857,6 +907,14 @@
 								// Bind 'keyup' event handler to the filter. 
 								$filterElement.on('keyup', function() {
 									updateFilter(tableID, index, $(this).val(), 'text');
+								});
+							} else if(columnTypes[index] === 'numeric') {
+								// It's a simple text filter. Create a text-box for this filter. 
+								$filterElement = $('<input type="text" style="width: 100%;">').attr('id', 'filter_' + tableID + '_' + index).addClass('tableUtils_textFilter');
+								
+								// Bind 'keyup' event handler to the filter. 
+								$filterElement.on('keyup', function() {
+									updateFilter(tableID, index, $(this).val(), 'numeric');
 								});
 							} else if(columnTypes[index] === 'checkbox') {
 								// It's a checkbox filter. Create a checkbox for this filter. 
@@ -899,9 +957,17 @@
 						// Create a text-box for the filter. 
 						$filterElement = $('<br><input type="text" style="width: 100%;">').attr('id', 'filter_' + tableID + '_' + index).addClass('tableUtils_textFilter');	
 						
+						var filterType = 'text';
+						if(settings.paginationOptions.required && settings.paginationOptions.useDynamicData) {
+							filterType = getColumnTypeForDB(settings.columns[index].type);
+							if(filterType === 'alphanumeric') {
+								filterType = 'text';
+							}
+						} 
+						
 						// Bind 'keyup' event handler to the filter. 						
 						$filterElement.on('keyup', function() {
-							updateFilter(tableID, index, $(this).val(), 'text');
+							updateFilter(tableID, index, $(this).val(), filterType);
 						});
 						
 						// Append the '$filterElement' which contains a filter for the current header. 
@@ -918,19 +984,20 @@
 				$mainTable.trigger('tableHeaderUpdated');
 				
 				// Save table settigns. 
-				saveTableSettings(tableID);					
+				saveTableSettings(tableID);		
+
+				stopTimer('filter');				
 			}, 
 			
 			
 			/**
 			 * Create a mastercheckBox for the table. 
-			 *
-			 * Options: 
-			 *    - columnIndex: The column in which the mastercheckbox should be added. 
-			 *
+			 * 
 			 */
 			masterCheckBox: function(tableID) {
-				//console.log('Mastercheckbox for: ' + tableID);
+				startTimer('masterckbox');
+				
+				logOnConsole('Mastercheckbox for: ' + tableID);
 				
 				// Load table settigns. 
 				loadTableSettings(tableID);					
@@ -941,14 +1008,10 @@
 				// The header table object. 
 				var $headerTable = $('#' + settings.fixHeaderOptions.fixedHeaderTable);
 				
+				settings.masterCheckBoxOptions.columnIndex = (settings.masterCheckBoxOptions.columnIndex) ? settings.masterCheckBoxOptions.columnIndex : ((settings.rowSelectOptions.columnIndex) ? settings.rowSelectOptions.columnIndex : ((settings.paginationOptions.selectionColumnIndex) ? settings.paginationOptions.selectionColumnIndex : 1));
+				
 				// The column where we want to add the mastercheckBox. 
-				var masterCheckBoxColumnNumber = settings.masterCheckBoxOptions.columnNumber;
-				
-				// The header where the mastercheckBox will be appended. 
-				var $masterCheckBoxCell = $headerTable.find('thead tr th:nth-child(' + masterCheckBoxColumnNumber + ')').empty();				
-				
-				// This is the ID of the mastercheckBox.  
-				settings.masterCheckBoxOptions.masterCheckBox = 'masterCheckBox_' + tableID;
+				var masterCheckBoxColumnNumber = settings.masterCheckBoxOptions.columnIndex;
 				
 				// Generate a jQuery Selector for selecting the eligible table rows from the main table. 
 				var eligibleRowsSelector = 'tbody tr';
@@ -960,97 +1023,62 @@
 					eligibleRowsSelector += '.currentPageRow';
 				}
 				
-				settings.masterCheckBoxOptions.eligibleRowsSelector = eligibleRowsSelector;
+				settings.masterCheckBoxOptions.eligibleRowsSelector = eligibleRowsSelector;				
 				
-				// The mastercheckBox. 
-				var $masterCheckBox = $('<input type="checkbox">').attr('id', settings.masterCheckBoxOptions.masterCheckBox).addClass('tableUtils_masterCheckBoxCell');
+				if(settings.masterCheckBoxOptions.required) {
+					// This is the ID of the mastercheckBox.  
+					settings.masterCheckBoxOptions.masterCheckBox = 'masterCheckBox_' + tableID;
+				
+					// The header where the mastercheckBox will be appended. 
+					var $masterCheckBoxCell = $headerTable.find('thead tr th:nth-child(' + masterCheckBoxColumnNumber + ')').empty();	
+				
+					// The mastercheckBox. 
+					var $masterCheckBox = $('<input type="checkbox">').attr('id', settings.masterCheckBoxOptions.masterCheckBox).addClass('tableUtils_masterCheckBoxCell');
 
-				// Bind 'change' event handler to the mastercheckBox. 
-				$masterCheckBox.on('change', function() {
-					toggleChildrenCheckBoxes(tableID, $(this).is(':checked'));
-				});				
-				
-				// Append the mastercheckBox to the mastercheckBox header. 
-				$masterCheckBoxCell.append($masterCheckBox);				
+					// Bind 'change' event handler to the mastercheckBox. 
+					$masterCheckBox.on('change', function() {
+						toggleChildrenCheckBoxes(tableID, $(this).is(':checked'));
+					});				
+					
+					// Append the mastercheckBox to the mastercheckBox header. 
+					$masterCheckBoxCell.append($masterCheckBox);				
+				}
 				
 				// Get the checkboxes in this column from all the rows of the table. 
 				var $childCheckBoxes = $mainTable.find('tbody tr td:nth-child(' + masterCheckBoxColumnNumber + ') input:checkbox');
 				
 				// Bind the 'change' event to each of these checkboxes. 
 				$childCheckBoxes.each(function() {
-					$(this).on('change', function() {
-						if($(this).is(':checked')) {
-							$(this).closest('tr').addClass('tableUtils_selectedRow');
+					var $this = $(this);
+					$this.on('change', function() {
+						var $this = $(this);
+						if($this.is(':checked')) {
+							$this.closest('tr').addClass('tableUtils_selectedRow');
 						} else {
-							$(this).closest('tr').removeClass('tableUtils_selectedRow');
+							$this.closest('tr').removeClass('tableUtils_selectedRow');
 						}
-						childCheckBoxToggledHandler(tableID);						
+						childCheckBoxToggledHandler(tableID, this);						
 					});					
-				});
+				});	
 				
-
-				if(settings.paginationOptions.required === true) {
-				
-					/* Additional Controls allow a feature to provide additional controls for improving its effectiveness. */
-					
-					// Get the additional controls area for the table. 
-					var $additionalControlsArea = $('#additionalControls_' + tableID);
-					
-					// We will put the additional controls for the mastercheckBox(as well as the additional controls for other features.) in a SPAN (since we want it inline.). 
-					var $masterCheckBoxAdditionalControls = $('<span></span>').attr('id', 'masterCBAdditionalControls_' + tableID).hide();
-					
-					// Create and append the control for selecting all rows in the table to the mastercheckBox additional controls area. 
-					var $selectAllItemsControl = $('<span></span>').attr('id', 'selectAllItemsControl_' + tableID);
-					$selectAllItemsControl.append($('<a href="#">Select All Records</a>'));
-					$selectAllItemsControl.on('click', function() {
-							selectAllItems(tableID);
-						});				
-					$masterCheckBoxAdditionalControls.append($selectAllItemsControl);
-					
-					// Create and append the control for de-selecting all rows in the table to the masterCheckBox additional controls area. 
-					var $deSelectAllItemsControl = $('<span></span>').attr('id', 'deSelectAllItemsControl_' + tableID);
-					$deSelectAllItemsControl.append($('<a href="#">Clear Selection</a>'));
-					$deSelectAllItemsControl.on('click', function() {
-							deSelectAllItems(tableID);
-						});				
-					$masterCheckBoxAdditionalControls.append($deSelectAllItemsControl);
-					
-					// Append the mastercheckBox controls to the additional controls area. 
-					$additionalControlsArea.append($masterCheckBoxAdditionalControls);
-					
-					// Bind 'showControls' event to the mastercheckBox. 
-					$masterCheckBox.on('showControls', function() {
-						$('#masterCBAdditionalControls_' + tableID).show();
-						$('#selectAllItemsControl_' + tableID).show();
-						$('#deSelectAllItemsControl_' + tableID).hide();				
-					});
-					
-					// Bind 'hideControls' event to the mastercheckBox. 
-					$masterCheckBox.on('hideControls', function() {									
-						$('#selectAllItemsControl_' + tableID).hide();
-						$('#deSelectAllItemsControl_' + tableID).hide();						
-						$('#masterCBAdditionalControls_' + tableID).hide();
-					});
-				}
+				if(settings.paginationOptions.required === true) { }
 				
 				// Save table settings. 
 				saveTableSettings(tableID);	
+				
+				stopTimer('masterckbox');
 			}, 
 						
 			
 			/**
 			 * Make the table columns sortable.  
-			 *
-			 * Options: 
-			 *    - type 
-					Description: The type of sorting to be applied on each column. 
-					
-					Datatype: Array 
-			 *
+			 *			 
 			 */
 			sort: function(tableID) {
 			
-				//console.log('Sorting for: ' + tableID);	
+				startTimer('sort');
+			
+				logOnConsole('Sorting for: ' + tableID);	
 			
 				// Load table settigns. 
 				loadTableSettings(tableID);
@@ -1095,24 +1123,32 @@
 						var $sortElement = $('<a href="#">' + headerName + '</a>').attr('id', 'sort_' + tableID + '_'+ index).addClass('tableUtils_sortLink');						
 						
 						// Bind 'click' event handler to the sorting link for this header depending on its sort type. 
-						if(sortTypes[index] === 'noSort') {
-							$sortElement = $('');
-						} else if(sortTypes[index] === 'numeric') {							
+						if(typeof sortTypes[index] === 'function') {
+							logOnConsole('Custom sorting');
 							$sortElement.on('click', function() {
-								updateSortInfo(tableID, index, 'numeric');
+								updateSortInfo(tableID, index, 'alphanumeric', sortTypes[index]);
 								return false;
 							});
-						} else if(sortTypes[index] === 'float') {
-							$sortElement.on('click', function() {
-								updateSortInfo(tableID, index, 'float');
-								return false;
-							});
-						} else if(sortTypes[index] === 'alphanumeric') {
-							$sortElement.on('click', function() {
-								updateSortInfo(tableID, index, 'alphanumeric');
-								return false;
-							});								
-						}						
+						} else {
+							if(sortTypes[index] === 'noSort') {
+								$sortElement = $('<span>' + headerName + '</span>');
+							} else if(sortTypes[index] === 'numeric') {							
+								$sortElement.on('click', function() {
+									updateSortInfo(tableID, index, 'numeric');
+									return false;
+								});
+							} else if(sortTypes[index] === 'float') {
+								$sortElement.on('click', function() {
+									updateSortInfo(tableID, index, 'float');
+									return false;
+								});
+							} else if(sortTypes[index] === 'alphanumeric') {
+								$sortElement.on('click', function() {
+									updateSortInfo(tableID, index, 'alphanumeric');
+									return false;
+								});								
+							}		
+						}
 						
 						// Remove any existing content from the header column and append the sorting link to the header column. 
 						$this.empty().append($sortElement);
@@ -1134,9 +1170,15 @@
 						// Create the sorting link. 
 						$sortElement = $('<a href="#">' + headerName + '</a>').attr('id', 'sort_' + tableID + '_'+ index).addClass('tableUtils_sortLink');						
 						
+						var columnType = 'alphanumeric';
+						if(settings.paginationOptions.required && settings.paginationOptions.useDynamicData) {
+							columnType = getColumnTypeForDB(settings.columns[index].type);
+						} 
+						logOnConsole('sorting columnType: ' + columnType);
+						
 						// Bind 'click' event handler to the sorting link for this header. 
 						$sortElement.on('click', function() {
-							updateSortInfo(tableID, index, 'alphanumeric');
+							updateSortInfo(tableID, index, columnType);
 							return false;
 						});
 						
@@ -1151,9 +1193,11 @@
 				
 				// Save table settings. 
 				saveTableSettings(tableID);	
+				
+				stopTimer('sort');
 			}, 
 			
-			
+									
 			/**
 			 * Make the table rows as rowSelectors.  
 			 *
@@ -1163,64 +1207,89 @@
 			 */
 			rowSelect: function(tableID) {
 				
-				//console.log('RowSelect for: ' + tableID);	
+				startTimer('rowSelect');
 				
 				// Load table settigns. 
 				loadTableSettings(tableID);
 				
 				// The table object. 
-				var $mainTable = $('#' + tableID);
+				var mainTable = document.getElementById(tableID);
 				
-				// All rows in the table. 
-				var $tableRows = $mainTable.find('tbody tr');
+				var tableRowsDOM = mainTable.rows;
 				
 				// The index of the column in which the selector checkbox is present. 
 				var checkBoxColumn = settings.rowSelectOptions.columnIndex;
 				
-				// For each row 
-				$tableRows.each(function(index) {
+				for(var i=0; i<tableRowsDOM.length; i++) {
+				//$tableRows.each(function(index) {
 					// The current row. 
-					var $this = $(this);
+					var $this = $(tableRowsDOM[i]);
 					
 					// Add 'tableUtils_rowSelect' class to the row. 
-					$this.addClass('tableUtils_rowSelect');
+					//$this.addClass('tableUtils_rowSelect');
+					fastAddClass(tableRowsDOM[i], 'tableUtils_rowSelect');
 					
+					var elementSelector = 'input:checkbox';
+					if(settings.rowSelectOptions.radio) {
+						elementSelector = 'input:radio';
+					}
 					// The checkbox in the checkbox column of this row. 
-					var $checkboxInThisRow = $this.find('td:nth-child(' +  checkBoxColumn + ') input:checkbox');					
+					var $checkboxInThisRow = $this.find('td:nth-child(' +  checkBoxColumn + ') ' + elementSelector);					
 					
-					// The row columns excluding the one in which the selector checkbox is present. 
-					var $rowColumns = $this.find('td').not(':nth-child(' + checkBoxColumn + ')');					
+					// change the event to 'click' if in future radio buttons do not work as expected. 
+					if(settings.rowSelectOptions.radio) {						 
+						$checkboxInThisRow.on('change', function() {
+							logOnConsole('rows: ' + fastGetParent(this, 'table').rows.length);
+							fastRemoveClass(fastGetParent(this, 'table').rows, 'tableUtils_selectedRow');
+							if(this.checked) {								
+								fastAddClass(fastGetParent(this, 'tr'), 'tableUtils_selectedRow');
+							} 
+						});
+					}					
 					
-					// For each of these columns 
-					$rowColumns.each(function(index) {	
-						// The current column. 
-						var $this = $(this);
-						
-						// Bind the 'click' event handler to this column, so that it will select or de-select the row when it is clicked. 
-						$this.on('click', function() {
-							// The TD that was clicked. 
-							var $this = $(this);
+					var columnIndex = checkBoxColumn - 1;
+					var rowColumnsDOM = tableRowsDOM[i].cells;
+					for(var j=0; j<rowColumnsDOM.length; j++) {
+						if(j != columnIndex) {							
+							var $this = $(rowColumnsDOM[j]);
 							
-							// The main table's ID. 
-							var mainTableID = $this.closest('table').attr('id');
+							$this.off('click.tableutils');
 							
-							// Load table settigns. 
-							loadTableSettings(mainTableID);
-							
-							// The index of the column in which the selector checkbox is present. 
-							var checkBoxColumnIndex = settings.rowSelectOptions.columnIndex;
-							
-							// The checkbox in the checkbox column of this row. 
-							var $checkboxInThisRow = $this.closest('tr').find('td:nth-child(' +  checkBoxColumnIndex + ') input:checkbox');	
-							
-							// Toggle the value of the checkbox. 
-							$checkboxInThisRow.attr('checked', !$checkboxInThisRow.attr('checked'));
-							
-							// Trigger the checkbox's 'change' event. 
-							$checkboxInThisRow.trigger('change');															
-						});						
-					});
-				});
+							// Bind the 'click' event handler to this column, so that it will select or de-select the row when it is clicked. 
+							$this.on('click.tableutils', function() {
+								logOnConsole('Rowselect clicked');
+								
+								// The TD that was clicked. 
+								var $this = $(this);
+								
+								// The main table's ID. 
+								var mainTableID = fastGetParent(this, 'table').id;
+								
+								// Load table settigns. 
+								loadTableSettings(mainTableID);
+								
+								// The index of the column in which the selector checkbox is present. 
+								var checkBoxColumnIndex = settings.rowSelectOptions.columnIndex;
+								
+								var elementSelector = 'input:checkbox';
+								if(settings.rowSelectOptions.radio) {
+									elementSelector = 'input:radio';
+								}
+								
+								// The checkbox in the checkbox column of this row. 
+								var $checkboxInThisRow = $this.closest('tr').find('td:nth-child(' +  checkBoxColumnIndex + ') ' + elementSelector);	
+								
+								// Toggle the value of the checkbox. 
+								$checkboxInThisRow.attr('checked', !$checkboxInThisRow.attr('checked'));							
+								
+								// Trigger the checkbox's 'change' event. 
+								$checkboxInThisRow.trigger('change');									
+							});	
+						}
+					}
+				}
+				
+				stopTimer('rowSelect');
 			},			
 			
 			
@@ -1232,13 +1301,9 @@
 			 *
 			 */
 			paginate: function(tableID) {				
+				startTimer('paginate');
+				
 				loadTableSettings(tableID);
-				
-				//var $fixedHeaderTable = $('#' + settings.fixHeaderOptions.fixedHeaderTable);
-								
-				//$(this).wrap('<div style="height: 300px; overflow: auto; " id="' + searchTableID + '_paginateTableDiv"/>');				
-				
-				//$('#' + searchTableID + '_paginateTableDiv').wrap('<div id="' + searchTableID + '_paginateMainDiv"/>');
 				
 				var eligibleRowsSelector = 'tbody tr';
 				if(settings.filterTableOptions.required === true) {
@@ -1254,10 +1319,10 @@
 				
 				var $paginationLinks = $('<td>').attr('id', 'paginationLinks_' + tableID);
 								
-				$paginationStats.append('Page: ').append($('<span></span>').attr('id', 'currentPageInfo_' + tableID));
-				$paginationStats.append('&nbsp;&nbsp;Page Size: ').append($('<span></span>').attr('id', 'pageSizeInfo_' + tableID));
-				$paginationStats.append('&nbsp;&nbsp;Records: ').append($('<span></span>').attr('id', 'recordsOnThisPageInfo_' + tableID).hide());
-				$paginationStats.append('&nbsp;&nbsp;Total Records: ').append($('<span></span>').attr('id', 'totalRecordsInfo_' + tableID));
+				$paginationStats.append($('<span>&nbsp;&nbsp;Page: </span>').attr('id', 'currentPageInfo_' + tableID));
+				$paginationStats.append($('<span>&nbsp;&nbsp;Page Size: </span>').attr('id', 'pageSizeInfo_' + tableID));
+				$paginationStats.append($('<span>&nbsp;&nbsp;Records: </span>').attr('id', 'recordsOnThisPageInfo_' + tableID).hide()).append();
+				$paginationStats.append($('<span>&nbsp;&nbsp;Total Records: </span>').attr('id', 'totalRecordsInfo_' + tableID));
 									
 				$paginationContentTable.append($('<tr>').append($paginationLinks));
 				
@@ -1266,21 +1331,19 @@
 				$paginationDiv.append($paginationContentTable);
 				
 				$('#outermostDiv_' + tableID).append($paginationDiv);
-								
-				//$('#' + searchTableID + '_paginationInformationDiv').append('<table width="100%"><tr><td><br></td></tr><tr><td width="70%" align="left" valign="top" id="' + searchTableID + '_paginationStats"></td><td width="30%" valign="top" align="right" id="' + searchTableID + '_paginationLinks"></td></tr></table>').css({width: settings.globalWidth + 'px'});
 				
-				//console.log('settings.pageSize: ' + settings.pageSize);				
+				logOnConsole('settings.pageSize: ' + settings.pageSize);				
 				if($.inArray(settings.paginationOptions.pageSize, settings.paginationOptions.availablePageSizes) == -1) {
 					settings.paginationOptions.availablePageSizes.push(settings.paginationOptions.pageSize);
-					//console.log('appended page size');
+					logOnConsole('appended page size');
 				}
 				
 				settings.paginationOptions.availablePageSizes.sort(function(pageSize1, pageSize2) {
 					return (pageSize1 > pageSize2) ? 1 : ((pageSize1 < pageSize2) ? -1 : 0);
 				});
 				
-				//console.log('page sizes length: ' + settings.availablePageSizes.length);
-				var $pageSizeSelectContent = $('<span class="tableUtils_label">&nbsp;&nbsp;Page Size: </span>');
+				logOnConsole('page sizes length: ' + settings.availablePageSizes.length);
+				var $pageSizeSelectContent = $('<span class="tableUtils_label" id="pageSizeSelectSpan_' + tableID + '">&nbsp;&nbsp;Page Size: </span>');
 				
 				var $pageSizeSelect = $('<select></select>').attr('id', 'pageSizeSelect_' + tableID);
 				$pageSizeSelect.on('change', function() {
@@ -1288,7 +1351,7 @@
 				});
 				
 				$.each(settings.paginationOptions.availablePageSizes, function(index, pageSize) {
-					//console.log('adding page size: ' + this);
+					logOnConsole('adding page size: ' + this);
 					$pageSizeSelect.append($('<option>', {
 						text: pageSize, value: pageSize
 					}));
@@ -1306,8 +1369,6 @@
 				
 				$paginationStats.append($pageSizeSelectContent, $pageSizeSelect);
 				
-				//
-				
 				var $gotoPage = $('<span class="tableUtils_label">&nbsp;&nbsp;Go to Page: </span>');
 				
 				var $pageSelect = $('<select></select>').attr('id', 'pageSelect_' + tableID);
@@ -1315,33 +1376,90 @@
 					goToPage(tableID, $(this).find('option:selected').val());
 				});
 				
-				$paginationStats.append($gotoPage, $pageSelect); 
+				$paginationStats.append($gotoPage, $pageSelect);				
 				
-				//
+				var $changePaginationTypeSpan = $('<span class="tableUtils_label">&nbsp;&nbsp;Type: </span>');
 				
+				var $changePaginationTypeSelect = $('<select></select>').attr('id', 'paginationTypeSelect_' + tableID);
+				$changePaginationTypeSelect.append($('<option></option>', { text: 'Change Pagination Type', value: '', selected: true }));
+				$changePaginationTypeSelect.append($('<option></option>', { text: 'Numeric', value: 'numeric' }));
+				$changePaginationTypeSelect.append($('<option></option>', { text: 'Alphabetic', value: 'alphabetic' }));
+				$changePaginationTypeSelect.append($('<option></option>', { text: 'AlphaNumeric', value: 'alphanumeric' }));
+				$changePaginationTypeSelect.on('change', function() {					
+					if($(this).find('option:selected').val() !== 'numeric') {						
+						$('#paginationColumnSpan_' + tableID).show();
+						$('#paginationColumnSelect_' + tableID).show();						
+					} else {
+						loadTableSettings(tableID);
+						settings.paginationOptions.type = $(this).find('option:selected').val();
+						$(this).val('');
+						settings.paginationOptions.linksCreated = false;
+						saveTableSettings(tableID);
+						resetToFirstPage(tableID);
+					}
+				});
 				
+				$paginationStats.append($changePaginationTypeSpan, $changePaginationTypeSelect);
 				
-				//$('#' + searchTableID + '_pageSizeSelect').val(settings.pageSize);
+				var $paginationColumnSpan = $('<span class="tableUtils_label" id="paginationColumnSpan_' + tableID + '">&nbsp;&nbsp;Column: </span>').hide();
+				
+				var $paginationColumnSelect = $('<select></select>').attr('id', 'paginationColumnSelect_' + tableID).hide();
+				$paginationColumnSelect.append($('<option></option>', { text: 'Select Pagiantion Column', value: '', selected: true }));
+				$.each(settings.columns, function(index, element) {
+					$paginationColumnSelect.append($('<option></option>', { text: element.label, value: index }));
+				});
+				
+				$paginationColumnSelect.on('change', function() {
+					loadTableSettings(tableID);					
+					settings.paginationOptions.type = $('#paginationTypeSelect_' + tableID).find('option:selected').val();
+					settings.paginationOptions.columnIndex = Number($(this).find('option:selected').val()) + 1;
+					$('#paginationTypeSelect_' + tableID).val('');
+					$(this).val('');
+					settings.paginationOptions.linksCreated = false;
+					saveTableSettings(tableID);
+					$(this).hide();
+					$('#paginationColumnSpan_' + tableID).hide();
+					logOnConsole('settings.paginationOptions.type: ' + settings.paginationOptions.type);
+					logOnConsole('Setting columnIndex: ' + settings.paginationOptions.columnIndex);
+					resetToFirstPage(tableID);
+				});
+				
+				$paginationStats.append($paginationColumnSpan, $paginationColumnSelect); 
+				
 				
 				$paginationStats.append($('<span class="tableUtils_label">').attr('id', 'pageItemsInfo_' + tableID)); 
 				
 				saveTableSettings(tableID);
 				
 				resetToFirstPage(tableID);
+				
+				stopTimer('paginate');
 			}, 
 			
 			
 			/**
 			* Indepenedent method. This method will return the selected records on the current page. 
 			*/
-			getSelectedRecordsOnPage: function(columnIndex) {
-				var tableID = this.attr('id');
+			getSelectedRecordsOnPage: function(columnIndex, idOfTable) {
+				var tableID = (idOfTable) ? idOfTable : this.attr('id');
 				
 				loadTableSettings(tableID);
 				var $mainTable = $('#' + tableID);				
-				var eligibleRowsSelector = settings.masterCheckBoxOptions.eligibleRowsSelector;
+				var eligibleRowsSelector = '';
+				if(settings.masterCheckBoxOptions.required === true) {
+					eligibleRowsSelector = settings.masterCheckBoxOptions.eligibleRowsSelector;
+				} else {
+					eligibleRowsSelector = 'tbody tr';
+				    if(settings.filterTableOptions.required === true) {
+				     eligibleRowsSelector += '.filteredRow';
+				    }				    
+				    if(settings.paginationOptions.required === true) {
+				     eligibleRowsSelector += '.currentPageRow';
+				    }
+				}
+				
 				var $rows = $mainTable.find(eligibleRowsSelector);
-				var selectionColumn = (!columnIndex) ? settings.masterCheckBoxOptions.columnNumber : columnIndex;
+				var selectionColumn = (columnIndex) ? columnIndex: settings.masterCheckBoxOptions.columnIndex;
 				var selection = new Array();
 				
 				var $selectedRecords = $rows.find('td:nth-child(' + selectionColumn + ') input:checkbox:checked');
@@ -1363,7 +1481,7 @@
 				var $mainTable = $('#' + tableID);				
 				var eligibleRowsSelector = settings.masterCheckBoxOptions.eligibleRowsSelector;
 				var $rows = $mainTable.find(eligibleRowsSelector);
-				var selectionColumn = (!columnIndex) ? settings.masterCheckBoxOptions.columnNumber : columnIndex;
+				var selectionColumn = (!columnIndex) ? settings.masterCheckBoxOptions.columnIndex : columnIndex;
 				var selection = new Array();
 				
 				var $selectedRecords = $rows.find('td:nth-child(' + selectionColumn + ') input:checkbox');
@@ -1399,6 +1517,51 @@
 
 			
 			/**
+			* Reset previously selected records. 
+			*/
+			resetPreviousSelection: function() {
+				var tableID = this.attr('id');
+				
+				loadTableSettings(tableID);
+				
+				settings.paginationOptions.resetPreviousSelection = true;
+				
+				settings.paginationOptions.previouslySelectedRecords = new Array();
+				
+				updateSelectedRecords(tableID);
+				
+				saveTableSettings(tableID);
+			},
+			
+			
+			/**
+			* Get the items selected on previous pages. 
+			*/
+			getPreviousSelection: function() {
+				var tableID = this.attr('id');
+				
+				loadTableSettings(tableID);
+				
+				return settings.paginationOptions.previouslySelectedRecords;
+			},
+			
+			
+			/**
+			* Get all selected items (previous selected + items selected on the current page) 
+			*/
+			getAllSelectedItems: function() {
+				var tableID = this.attr('id');
+				var selectedItemsOnCurrentPage = methods.getSelectedRecordsOnPage(null, tableID);
+				for(var i=0; i<settings.paginationOptions.previouslySelectedRecords.length; i++) {
+					if($.inArray(settings.paginationOptions.previouslySelectedRecords[i], selectedItemsOnCurrentPage) === -1) {
+						selectedItemsOnCurrentPage.push(settings.paginationOptions.previouslySelectedRecords[i]);
+					}
+				}
+				return selectedItemsOnCurrentPage;
+			},
+			
+			
+			/**
 			* Add a new message to the table. 
 			*/ 
 			addMessage: function(message) {
@@ -1408,7 +1571,7 @@
 				
 				loadTableSettings(tableID);
 				
-				//console.log('pushing message: ' + message.type);			
+				logOnConsole('pushing message: ' + message.type);			
 				settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
 					return (msg.type === message.type);
 				}, true);
@@ -1448,51 +1611,12 @@
 				updateMessages(tableID);
 			},
 			
-			
-			/*
-			pushMessage = function(tableID, message) {
-				loadTableSettings(tableID);
-				
-				//console.log('pushing message: ' + message.type);			
-				settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
-					return (msg.type === message.type);
-				}, true);
-				
-				settings.fixHeaderOptions.messages.push(message);
-				
-				saveTableSettings(tableID);
-				
-				setNextMessage(tableID, message);
-				
-				clearMessagesInterval(tableID);
-				
-				updateMessages(tableID);
-				
-			}; 
-			
-			
-			popMessage = function(tableID, message) {
-				loadTableSettings(tableID);
-				
-				settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
-					return (msg.type === message.type);
-				}, true);
-				
-				settings.fixHeaderOptions.nextMessageIndex = 0;
-				
-				saveTableSettings(tableID);
-				
-				clearMessagesInterval(tableID);
-				
-				updateMessages(tableID);
-			}; 
-			*/
-			
 			/**
-			 * Adds a new row to the selected table. 
+			 * Adds a new row to the selected table. ^Optimized 
 			 */
 			addRow: function(options) {
-                if(options.tableID) {
+                startTimer('addRow');
+				if(options.tableID) {
 					var $insertIn = $('#' + options.tableID);
 				
 					var $row;
@@ -1502,11 +1626,11 @@
 						if(options.row.props) {                  
 							$row = $('<tr></tr>');
 							$.each(options.row.props, function(name, value) {
-								//console.log('Property: ' + name);
+								logOnConsole('Property: ' + name);
 								if(name === 'style') {
-									$($row).css(value);
+									$row.css(value);
 								} else {
-									$($row).attr(name, value);
+									$row.attr(name, value);
 								}
 							});
 						} else {
@@ -1522,35 +1646,32 @@
 						var $newCell = $('<td></td>');
 						
 						// If we need to assign properties to the column, assign the properties; else simply add the html.
-						if(value.props) { 
+						if(value && value.props) { 
 							$.each(value.props, function(name, value) {
 								if(name === 'style') {
-									$($newCell).css(value);
+									$newCell.css(value);
 								} else {
-									$($newCell).attr(name, value);
+									$newCell.attr(name, value);
 								}
 							});
-							$($newCell).html(value.html);
+							$newCell.html(value.html);
 						} else {
-							$($newCell).html(value);
+							$newCell.html(value);
 						}
 						
 						// Append the column to the row.
-						$($row).append($($newCell));
+						$row.append($newCell);
 					});
 										
 					$insertIn.append($row); 
-					
-					$insertIn.find('tbody tr:odd').addClass('bgLtRow');
-					$insertIn.find('tbody tr:even').addClass('bgDkRow');
-					
 				}
+				stopTimer('addRow');
             },
 			
 			
 			
 			deleteRecords: function(tableID) {
-				//console.log('Adding delete functionality.');
+				logOnConsole('Adding delete functionality.');
 				
 				var $mainTable = $('#' + tableID);
 				
@@ -1566,7 +1687,7 @@
 							selector += '.filteredRow';
 						}
 						
-						var $selectedRows = $mainTable.find(selector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ')').find('input:checkbox:checked'); 
+						var $selectedRows = $mainTable.find(selector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ')').find('input:checkbox:checked'); 
 						var totalSelectedRecords = $selectedRows.length;
 						
 						var selectedRecords = new Array();
@@ -1621,11 +1742,10 @@
 					
 				} 
 			},
-			
-			
+
 			
 			editRecord: function(tableID) {
-				//console.log('Adding edit functionality.');
+				logOnConsole('Adding edit functionality.');
 				
 				var $mainTable = $('#' + tableID);
 				
@@ -1661,7 +1781,7 @@
 								
 				var newColumns = [];
 				
-				//console.log('Editing row.');
+				logOnConsole('Editing row.');
 				
 				$.each(settings.columns, function(index, column) {
 					var $newCell = $('<span></span>');
@@ -1672,8 +1792,7 @@
 						$inputElement.attr('type', 'text');							
 					} else if(column.type === 'select') {
 						$inputElement = $('<select></select>');
-						//$inputElement.attr('type', 'text');
-						
+
 						$.each(column.options, function(index, option) {
 							$inputElement.append('<option>', {text: option.text, value: option.value});
 						});
@@ -1684,10 +1803,6 @@
 					
 					$inputElement.css('width', '100%');					
 					
-					//if(column.disabled) {
-						//$inputElement.attr('disabled', true);
-					//}
-					
 					$inputElement.addClass('editRowField');
 					
 					$newCell.append($inputElement);
@@ -1697,7 +1812,7 @@
 						$newCell.append('<label></label>'); 
 					}
 					
-					//console.log('New Cell to be added: ' + $newCell.html());
+					logOnConsole('New Cell to be added: ' + $newCell.html());
 					
 					var newColumn = null;
 					
@@ -1708,11 +1823,11 @@
 						newColumn.html = columnData;
 						newColumn.props = column.style;
 						
-						//console.log('Styled Column ' + index + ' - ' + columnData);
+						logOnConsole('Styled Column ' + index + ' - ' + columnData);
 					} else {
 						newColumn = columnData;
 						
-						//console.log('Simple Column ' + index + ' - ' + columnData);
+						logOnConsole('Simple Column ' + index + ' - ' + columnData);
 					}
 					
 					newColumns.push(newColumn);
@@ -1730,9 +1845,6 @@
 					var $newRow = $('#editRow_' + tableID);
 					
 					$newRow.find('.editRowField').each(function(index) {
-						//if(!settings.columns[index].defaultValue) { 
-							//$(this).val('');
-						//}
 						if(!settings.columns[index].disabled) { 
 							$(this).val('');
 						}
@@ -1740,7 +1852,7 @@
 				});
 				
 				$mainTable.on('startEditRow', function() {
-					//console.log('start row edit.');
+					logOnConsole('start row edit.');
 					
 					var tableID = $(this).attr('id');
 					
@@ -1749,7 +1861,7 @@
 						selector += '.filteredRow';
 					}
 					
-					var $selectedRows = $mainTable.find(selector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ')').find('input:checkbox:checked'); 
+					var $selectedRows = $mainTable.find(selector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ')').find('input:checkbox:checked'); 
 					var totalSelectedRecords = $selectedRows.length;
 					
 					if(totalSelectedRecords == 1) {
@@ -1759,15 +1871,13 @@
 						
 						var $editRow = $('<tr></tr>').html(settings.editRecordOptions.row).attr('id', 'editRow_' + tableID);
 						
-						//$(this).prepend($editRow);
-						
 						$selectedRow.before($editRow);
 						
-						//console.log('iterating over columns of selected row. checkbox at ' + settings.masterCheckBoxOptions.columnNumber);
+						logOnConsole('iterating over columns of selected row. checkbox at ' + settings.masterCheckBoxOptions.columnIndex);
 						$selectedRow.find('td').each(function(index, column) {
-							//console.log('column: ' + $(this).html());							
-							if(index != (settings.masterCheckBoxOptions.columnNumber - 1)) {								
-								//console.log('setting value for column: ' + $editRow.find('.editRowField').eq(index).html());
+							logOnConsole('column: ' + $(this).html());							
+							if(index != (settings.masterCheckBoxOptions.columnIndex - 1)) {								
+								logOnConsole('setting value for column: ' + $editRow.find('.editRowField').eq(index).html());
 								if(settings.columns[index].editable === true) {
 									$editRow.find('.editRowField').eq(index).attr('value', $(this).html()); 
 								} else {
@@ -1778,10 +1888,6 @@
 								$editRow.find('.editRowField').eq(index).attr('value', $selectedRows.val());  
 							}
 						});
-						
-						//if(settings.paginationRequired) {
-							//updatePages(searchTableID);
-						//}
 						
 						$('#editRowAddButton_' + tableID).hide();
 						$('#editRowSaveButton_' + tableID).show();
@@ -1806,8 +1912,6 @@
 					$('#editRowCancelButton_' + tableID).hide();				
 					$('#editRowSaveButton_' + tableID).hide();
 					$('#editRowAddButton_' + tableID).show();
-					
-					//$(this).trigger('unFreeze');
 				});
 				
 				
@@ -1898,15 +2002,7 @@
 								methods.addRow({ tableID: tableID, columns: newColumns });
 							}
 							
-							//if(settings.paginationRequired) {
-								//updatePages(searchTableID);
-							//} 
-														
 							$('#' + tableID).trigger('cancelEditRow').find('.editingRow_' + tableID).remove();
-							//$(this).find('.editingRow_' + tableID).show(); 
-							//clearNewRowColumns();
-							
-							//$newRow.remove(); 
 							
 							if(settings.editRecordOptions.success) {
 								settings.editRecordOptions.success(data);
@@ -1940,14 +2036,13 @@
 				});
 				
 			},
-			
-			
+
 			
 			/**
 			* Adds the functionality of inserting new rows into the table. 
 			*/
 			newRecordInsertion: function(tableID) {			
-				//console.log('Adding new record functionality.');
+				logOnConsole('Adding new record functionality.');
 				
 				var $searchTable = $('#' + tableID);
 				
@@ -1988,7 +2083,7 @@
 								
 				var newColumns = [];
 				
-				//console.log('Adding new row.');
+				logOnConsole('Adding new row.');
 				
 				$.each(settings.columns, function(index, column) {
 					var $newCell = $('<span></span>');
@@ -1999,7 +2094,6 @@
 						$inputElement.attr('type', 'text');							
 					} else if(column.type === 'select') {
 						$inputElement = $('<select></select>');
-						//$inputElement.attr('type', 'text');
 						
 						$.each(column.options, function(index, option) {
 							$inputElement.append('<option>', {text: option.text, value: option.value});
@@ -2011,10 +2105,10 @@
 					
 					$inputElement.css('width', '100%');
 					
-					//console.log('Before Check Default value: ' + column.defaultValue);
+					logOnConsole('Before Check Default value: ' + column.defaultValue);
 					if(column.defaultValue) {
 						$inputElement.attr('value', column.defaultValue); 
-						//console.log('Default value: ' + column.defaultValue);
+						logOnConsole('Default value: ' + column.defaultValue);
 					}
 					
 					if(column.disabled) {
@@ -2039,11 +2133,11 @@
 						newColumn.html = columnData;
 						newColumn.props = column.style;
 						
-						//console.log('Styled Column ' + index + ' - ' + columnData);
+						logOnConsole('Styled Column ' + index + ' - ' + columnData);
 					} else {
 						newColumn = columnData;
 						
-						//console.log('Simple Column ' + index + ' - ' + columnData);
+						logOnConsole('Simple Column ' + index + ' - ' + columnData);
 					}
 					
 					newColumns.push(newColumn);
@@ -2077,8 +2171,6 @@
 					$('#newRowCancelButton_' + tableID).hide();				
 					$('#newRowSaveButton_' + tableID).hide();
 					$('#newRowAddButton_' + tableID).show();
-					
-					//$(this).trigger('unFreeze');
 				});
 				
 				$searchTable.on('startNewRowInsert', function() {
@@ -2088,15 +2180,9 @@
 					
 					$(this).prepend($newRow);
 					
-					//if(settings.paginationRequired) {
-						//updatePages(searchTableID);
-					//}
-					
 					$('#newRowAddButton_' + tableID).hide();
 					$('#newRowSaveButton_' + tableID).show();
 					$('#newRowCancelButton_' + tableID).show();
-					
-					//$(this).trigger('freeze');
 				});
 				
 				$searchTable.on('endNewRowInsert', function() {					
@@ -2185,15 +2271,7 @@
 								methods.addRow({ tableID: tableID, columns: newColumns });
 							}
 							
-							//if(settings.paginationRequired) {
-								//updatePages(searchTableID);
-							//} 
-														
 							$('#' + tableID).trigger('cancelNewRowInsert');
-							
-							//clearNewRowColumns();
-							
-							//$newRow.remove(); 
 							
 							if(settings.newRowOptions.success) {
 								settings.newRowOptions.success(data);
@@ -2235,76 +2313,120 @@
 		
 		
 		/**
-		* Add a new filter. 
+		* Add a new filter. ^Optimized 
 		*/
 		updateFilter = function(tableID, index, filterValue, filterType) {
-			//console.log('Updating filter for: ' + tableID + ', column: ' + index);
+			logOnConsole('Updating filter for: ' + tableID + ', column: ' + index);
 			
 			loadTableSettings(tableID);
 			
-			settings.filterTableOptions.activeFilters = $.grep(settings.filterTableOptions.activeFilters, function(filter, indexInArray) {
-				return (index === filter.columnIndex);
-			}, true);
-			
-			//console.log('After grep: ' + settings.filterTableOptions.activeFilters.length);
-			
-			if((filterType === 'checkbox' && filterValue === true) || (filterType !== 'checkbox' && filterValue.length > 0)) {
-				var newFilter = {
-					columnIndex: index,
-					columnName: settings.columns[index].value,
-					expr: filterValue,
-					type: filterType
-				};
-				
-				settings.filterTableOptions.activeFilters.push(newFilter);
-				
-				//console.log('Filter updated.');
+			var validRequest = true;
+			if(filterValue.length > 0 && (filterType === 'numeric' || filterType === 'float')) {
+				if(isNaN(filterValue) || $.trim(filterValue).length < 1) {
+					validRequest = false;
+				}
 			}
 			
-			var filters = new Array();
-			$.each(settings.filterTableOptions.activeFilters, function(index, filter) {
-				filters.push(settings.columns[filter.columnIndex].label + '(' + filter.expr + ')'); 
-			});
-			
-			var filtersList = filters.join(', ');
-			
-			saveTableSettings(tableID);
-			
-			//console.log(settings.filterTableOptions.activeFilters.length + ' active filters.');
-			
-			if(settings.filterTableOptions.activeFilters.length > 0) {
-				settings.filterTableOptions.message.message = '<b>' + settings.filterTableOptions.activeFilters.length + '</b> Filter(s) Active. Filtering on: <b>' + filtersList + '</b>.';
-				pushMessage(tableID, settings.filterTableOptions.message); 
+			if(!validRequest) {				
+				settings.filterTableOptions.message.block = true;
+				settings.filterTableOptions.message.message = '<b>' + 'Invalid filter value. Please enter a numeric value to filter on: ' + settings.columns[index].label + '</b>';
+				pushMessage(tableID, settings.filterTableOptions.message); 				
 			} else {
-				popMessage(tableID, settings.filterTableOptions.message);
-			}
-			
-			
-			if(settings.paginationOptions.serverSide === false) {
-				applyFilter(tableID);			
-			} else {
-				resetToFirstPage(tableID);
-			}
-			
-			$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false).trigger('hideControls');	
+				
+				settings.filterTableOptions.activeFilters = $.grep(settings.filterTableOptions.activeFilters, function(filter, indexInArray) {
+					return (index === filter.columnIndex);
+				}, true);
+				
+				logOnConsole('After grep: ' + settings.filterTableOptions.activeFilters.length);
+				
+				if((filterType === 'checkbox' && filterValue === true) || (filterType !== 'checkbox' && filterValue.length > 0)) {
+					var newFilter = {
+						columnIndex: index,
+						columnName: settings.columns[index].value,
+						expr: filterValue,
+						type: filterType
+					};
+					
+					settings.filterTableOptions.activeFilters.push(newFilter);
+					
+					logOnConsole('Filter updated.');
+				}
+				
+				var filters = new Array();
+				for(var i=0; i<settings.filterTableOptions.activeFilters.length; i++) {
+					filters.push(settings.columns[settings.filterTableOptions.activeFilters[i].columnIndex].label + '(' + settings.filterTableOptions.activeFilters[i].expr + ')'); 
+				}
+				
+				var filtersList = filters.join(', ');
+				
+				saveTableSettings(tableID);
+				
+				logOnConsole(settings.filterTableOptions.activeFilters.length + ' active filters.');
+				
+				if(settings.filterTableOptions.activeFilters.length > 0) {
+					settings.filterTableOptions.message.block = false;
+					settings.filterTableOptions.message.message = '<b>' + settings.filterTableOptions.activeFilters.length + '</b> Filter(s) Active. Filtering on: <b>' + filtersList + '</b>.';
+					pushMessage(tableID, settings.filterTableOptions.message); 
+				} else {
+					popMessage(tableID, settings.filterTableOptions.message);
+				}
+				
+				loadTableSettings(tableID);
+				if(settings.filterTableOptions.fetchDelayTimer != null) {
+					logOnConsole('Clearing previous request');
+					clearTimeout(settings.filterTableOptions.fetchDelayTimer);
+					settings.filterTableOptions.fetchDelayTimer = null;
+					logOnConsole('Setting new timer again');
+					settings.filterTableOptions.fetchDelayTimer = setTimeout(function() {
+						logOnConsole('Timed out: ' + tableID);
+						if(settings.paginationOptions.serverSide === false) {				
+							applyFilter(tableID);																					
+						} else {					
+							resetToFirstPage(tableID, true);						
+						}
+						settings.filterTableOptions.fetchDelayTimer = null;
+					}, settings.filterTableOptions.fetchDelayTimeOut);				
+				} else {
+					logOnConsole('No previous request found. Setting timer.');
+					settings.filterTableOptions.fetchDelayTimer = setTimeout(function() {
+						logOnConsole('Timed out: ' + tableID);
+						if(settings.paginationOptions.serverSide === false) {				
+							applyFilter(tableID);																					
+						} else {					
+							resetToFirstPage(tableID, true);						
+						}
+						settings.filterTableOptions.fetchDelayTimer = null;
+					}, settings.filterTableOptions.fetchDelayTimeOut);				
+				}	
+				
+				saveTableSettings(tableID);
+				
+				$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false).trigger('hideControls');	
+			} 
 		};	
 
 
 		/**
 		* Update sorting. 
 		*/ 
-		updateSortInfo = function(tableID, index, sortType) {
-			//console.log('Updating sort info for: ' + tableID + ', column: ' + index);
+		updateSortInfo = function(tableID, index, sortType, sortFunction) {
+			logOnConsole('Updating sort info for: ' + tableID + ', column: ' + index);
+			startTimer('updateSortInfo');
 			
 			loadTableSettings(tableID);
 			
 			var sortingUp = true;
 			
-			if(settings.sortOptions.sortingState.columnIndex) {
+			if(settings.sortOptions.sortingState.columnIndex != 'null') {
 				if(settings.sortOptions.sortingState.columnIndex == index) {
+					logOnConsole('settings.sortOptions.sortingState.columnIndex: ' + settings.sortOptions.sortingState.columnIndex);
+					logOnConsole('settings.sortOptions.sortingState.sortUp: ' + settings.sortOptions.sortingState.sortUp);
 					sortingUp = !settings.sortOptions.sortingState.sortUp;
+					logOnConsole('sortingUp: ' + sortingUp);
 				}
-			} 			
+			} else {
+				logOnConsole('settings.sortOptions.sortingState.columnIndex is undefined');
+			}		
 			
 			settings.sortOptions.sortingState = {
 				columnIndex: index,
@@ -2313,22 +2435,29 @@
 				type: sortType
 			};
 			
+			if(sortFunction) {
+				logOnConsole('Custom sorting function added.');
+				settings.sortOptions.sortingState['sortFunction'] = sortFunction;
+			}
+			
 			saveTableSettings(tableID);
 			
-			//console.log('sorting active on header: ' + settings.sortOptions.sortingState.columnIndex);
-			
-			//if(settings.filterTableOptions.activeFilters.length > 0) {
-				settings.sortOptions.message.message = 'Sorting on: <b>' + settings.columns[settings.sortOptions.sortingState.columnIndex].label + '</b>(' + ( (settings.sortOptions.sortingState.sortUp === true) ? 'Asc' : 'Desc') + ').';
-				pushMessage(tableID, settings.sortOptions.message); 
-			//} else {
-				//(tableID, settings.filterTableOptions.message);
-			//}
-			
+			logOnConsole('sorting active on header: ' + settings.sortOptions.sortingState.columnIndex);			 
+						
 			if(settings.paginationOptions.serverSide === false) {
+				settings.sortOptions.message.message = 'Sorting. Please wait.';
+				settings.sortOptions.message.block = true;
+				pushMessage(tableID, settings.sortOptions.message);
 				applySort(tableID);	
+				settings.sortOptions.message.block = false;				
 			} else {
-				resetToFirstPage(tableID);
-			}
+				resetToFirstPage(tableID, true);
+			}			
+			
+			settings.sortOptions.message.message = 'Sorting on: <b>' + settings.columns[settings.sortOptions.sortingState.columnIndex].label + '</b>(' + ( (settings.sortOptions.sortingState.sortUp === true) ? 'Asc' : 'Desc') + ').';
+			pushMessage(tableID, settings.sortOptions.message);
+			
+			stopTimer('updateSortInfo');
 		};
 		
 		
@@ -2360,9 +2489,25 @@
 		};
 		
 		
-		loadTableSettings = function(tableID) {
-			//console.log('Looking for the settings of: ' + tableID);
-			
+		printCurrentSettings = function() {			
+			logOnConsole('tableID: ' + settings.tableID);	
+			logOnConsole('pagination fetch url: ' + settings.paginationOptions.fetchUrl);			
+		};
+		
+		
+		printSettings = function() {	
+			logOnConsole('settings.pageSize: ' + settings.rowSelectOptions);
+			logOnConsole('settings.numberOfPageLinks: ' + settings.fixHeaderOptions);
+			logOnConsole('settings.displayPagesCount: ' + settings.filterTableOptions);
+			logOnConsole('settings.currentPage: ' + settings.masterCheckBoxOptions);
+			logOnConsole('settings.availablePageSizes: ' + settings.sortOptions);
+			logOnConsole('settings.fixedHeaderTable: ' + settings.paginationOptions);
+			logOnConsole('settings.globalWidth: ' + settings.newRowOptions);
+			logOnConsole('settings.updateURL: ' + settings.editRowOptions);
+		};
+		
+		
+		loadTableSettings = function(tableID) {			
 			var settingsForTable = {};
 			var settingsFound = false;
 			
@@ -2370,9 +2515,7 @@
 				if(tableSettings[i].tableID === tableID) {
 					settingsForTable = tableSettings[i];
 					settingsFound = true;
-					//console.log('Settings found: ' + settingsForTable.tableID + ' - ' + tableID);
 					break;
-					//console.log('Settings found: ' + settingsForTable.tableID);
 				}
 			}
 			
@@ -2396,204 +2539,413 @@
 				return true;
 			} else {
 				settings = $.extend(true, {}, defaultSettings);
-				//console.log('Settings not found for table: ' + tableID + '. Default settings tableID: ' + settings.tableID + ' - ' + settings.fixHeaderOptions.fixedHeaderTable);
+				logOnConsole('Settings not found for table: ' + tableID + '. Default settings tableID: ' + settings.tableID + ' - ' + settings.fixHeaderOptions.fixedHeaderTable);
 				return false;
 			}
 			
 		};
 		
 		
-		hasVerticalScrollBar = function(element) {
-			return $(element).scrollHeight > $(element).height(); 
+		/**
+		* Faster alternative to jQuerys' $('#' + id) method. 
+		*/
+		$.id = function(elementID) {
+			return $(document.getElementById(elementID));
 		};
 		
 		
-		
-		adjustTableWidth = function(tableID) {
-			loadTableSettings(tableID);
-			
-			var $table = $('#' + tableID);
-			
-			if(hasVerticalScrollBar($('#mainTableWrapper_' + tableID))) {
-				$($table).css({width: settings.globalWidth + 5 + 'px'});
-				//console.log('incr');
+		/**
+		* Faster alternative to jQuerys' removeClass() method. 
+		*/
+		removeClass = function(element, className) {
+			if(element instanceof Array) {
+				for(var i=0; i<element.length; i++) {
+					element[i].className = element[i].className.replace(new RegExp('(^|\\s+)' + className + '(\\s+|$)', 'g'), '$1');
+				}
 			} else {
-				$($table).css({width: settings.globalWidth - 5 + 'px'});
-				//console.log('desr');
+				element.className = element.className.replace(new RegExp('(^|\\s+)' + className + '(\\s+|$)', 'g'), '$1');
 			}
 		};
 		
 		
-		printSettings = function() {	
+		/**
+		* Faster alternative to jQuerys' removeClass() method. 
+		*/
+		fastRemoveClass = function(element, className) {
+			startTimer('fastRemoveClass');			
+			if(element) {
+				var elmt = element.jquery ? element.get() : element;
+				if(!elmt.className) {
+					elmt.className = '';
+					logOnConsole('className not found');
+				}
+				if(elmt && (elmt instanceof Array || elmt.length)) {
+					logOnConsole('elmt size: ' + elmt.length);
+					for(var i=0; i<elmt.length; i++) {
+						elmt[i].className = elmt[i].className.replace(new RegExp('(^|\\s+)' + className + '(\\s+|$)', 'g'), '$1');
+						logOnConsole('className: ' + elmt[i].className);
+					}
+				} else {
+					elmt.className = elmt.className.replace(new RegExp('(^|\\s+)' + className + '(\\s+|$)', 'g'), '$1');
+					logOnConsole('className: ' + elmt.className);
+				}
+			}
+			stopTimer('fastRemoveClass');
+		};
 		
-			//console.log('settings.pageSize: ' + settings.rowSelectOptions);
-			//console.log('settings.numberOfPageLinks: ' + settings.fixHeaderOptions);
-			//console.log('settings.displayPagesCount: ' + settings.filterTableOptions);
-			//console.log('settings.currentPage: ' + settings.masterCheckBoxOptions);
-			//console.log('settings.availablePageSizes: ' + settings.sortOptions);
-			//console.log('settings.fixedHeaderTable: ' + settings.paginationOptions);
-			//console.log('settings.globalWidth: ' + settings.newRowOptions);
-			//console.log('settings.updateURL: ' + settings.editRowOptions);
+		/**
+		* Faster alternative to jQuerys' addClass() method. 
+		*/
+		fastAddClass = function(element, className) {			
+			startTimer('fastAddClass');			
+			if(element) {
+				var elmt = element.jquery ? element.get() : element;
+				if(elmt instanceof Array) {
+					for(var i=0; i<elmt.length; i++) {
+						// Check if the class is already added to the element. 
+						var regEx = new RegExp(className);
+						
+						if(regEx.exec(elmt[i].className) == null) {
+							elmt[i].className = elmt[i].className + ' ' + className;
+						} 
+					}
+				} else {
+					// Check if the class is already added to the element. 
+					var regEx = new RegExp(className);
 					
+					if(regEx.exec(elmt.className) == null) {
+						elmt.className = elmt.className + ' ' + className;
+					}
+				}			
+			}
+			stopTimer('fastAddClass');
+		};
+		
+		/**
+		* Faster alternative to jQuerys' show() method.
+		*/
+		fastShow = function(elements) {
+			startTimer('fastShow');			
+			if(elements) {
+				var elmt = elements.jquery ? elements.get() : elements;
+				if(elmt instanceof Array) {
+					for(var i=0; i<elmt.length; i++) {
+						elmt[i].style.display = 'block';
+					}
+				} else {
+					elmt.style.display = 'block';
+				}
+			}	
+			stopTimer('fastShow');			
+		};
+		
+		/**
+		* Faster alternative to jQuerys' hide() method.
+		*/
+		fastHide = function(elements) {
+			startTimer('fastHide');			
+			if(elements) {
+				var elmt = elements.jquery ? elements.get() : elements;
+				if(elmt instanceof Array) {
+					for(var i=0; i<elmt.length; i++) {
+						elmt[i].style.display = 'none';
+					}
+				} else {
+					elmt.style.display = 'none';
+				}
+			}
+			stopTimer('fastHide');
+		};
+		
+		/**
+		* Faster alternative to jQuerys' replaceWith() method. 
+		*/
+		fastReplace = function(elementToReplace, replaceWith) {
+			var parentElement = elementToReplace.parentNode;
+			parentElement.insertBefore(replaceWith, elementToReplace);
+			parentElement.removeChild(elementToReplace);
+		};
+		
+		/**
+		* Faster alternative to jQuerys' closest() method. 
+		*/		
+		fastGetParent = function(element, parentNodeToFind) {
+			var parentNode = null;
+			if (element != null) {				
+				if (element.nodeType == 1 && (element.tagName.toLowerCase() == parentNodeToFind.toLowerCase())) {
+					parentNode = element;
+				} else {
+					parentNode = fastGetParent(element.parentNode, parentNodeToFind);
+				}
+			}
+			return parentNode; 
 		};
 		
 		
+		/**
+		* Copy attributes from one element to another. The includeList and excludeList feature is currently not implemented. 
+		*/
+		copyAllAttributes = function(copyFrom, copyTo, includeList, excludeList) {
+			var attributes = copyFrom.attributes;
+			for(var i=0; i<attributes.length; i++) {
+				copyTo[attributes[i].name] = attributes[i].value;
+			}
+		};
+		
+		
+		/**
+		* Browser independent function to trigger an event on an element.  
+		*/
+		fireEvent = function(element, eventName) {
+			if (document.createEventObject) {
+				// dispatch for IE
+				var event = document.createEventObject();
+				if(element.fireEvent) {
+					logOnConsole('firing event');
+					return element.fireEvent('on' + eventName, event);
+				} else if(element.dispatchEvent) {
+					event = document.createEvent("HTMLEvents");
+					event.initEvent(eventName, true, true );
+					logOnConsole('dispatching for ie');
+					return !element.dispatchEvent(event);
+				}
+			} else {
+				// dispatch for firefox + others
+				var event = document.createEvent("HTMLEvents");
+				event.initEvent(eventName, true, true ); // event type,bubbling,cancelable
+				logOnConsole('non-ie dispatch');
+				return !element.dispatchEvent(event);
+			}
+		};
+		
+		/**
+		* Apply filter. ^Optimized 
+		*/
 		applyFilter = function(tableID) {
-			//console.log('Filtering callback: ' + tableID);
+			logOnConsole('Filtering callback: ' + tableID);
+			
+			startTimer('applyFilter');
 			
 			loadTableSettings(tableID);
 			
 			var $tableToFilter = $('#' + tableID);
 			
-			var $fixedHeaderTable = $('#' + settings.fixHeaderOptions.fixedHeaderTable);
+			var tableDOM = $tableToFilter[0];
 			
-			var $rows = $tableToFilter.find('tbody tr').addClass('filteredRow').show();
+			startTimer('get rows, add class, and show them');
 			
-			var $headers = $fixedHeaderTable.find('thead tr th');
-						
-			//console.log($headers.length + ' headers.');
-						
-			var resetFilters = (settings.filterTableOptions.activeFilters.length > 0) ? false : true;
-					
-			$.each(settings.filterTableOptions.activeFilters, function(index, filter) {
-				//console.log('Applying filter on header: ' + filter.columnIndex + '. filtering for: ' + filter.expr);
-				
-				$rows.each(function(index) {
-					var $this = $(this);
-					
-					var columnValue = null;					
-					
-					if(filter.type === 'checkbox') {
-						columnValue = $this.find('td:nth-child(' + (filter.columnIndex + 1) + ')').find('input:checkbox').is(':checked');
-						
-						if(columnValue !== filter.expr) {								
-							$this.removeClass('filteredRow');
-							$this.hide();								
-						}						
-					} else if(filter.type === 'numeric') {
-						columnValue = $.trim($this.find('td:nth-child(' + (filter.columnIndex + 1) + ')').text());
-						
-						if(filter.expr != columnValue) {
-							$this.removeClass('filteredRow');
-							$this.hide();
-						}
-					} else {
-						columnValue = $.trim($this.find('td:nth-child(' + (filter.columnIndex + 1) + ')').text());
-						
-						var pattern = new RegExp(filter.expr, 'i');	
-						
-						if(pattern.test(columnValue) === false) {								
-							$this.removeClass('filteredRow');
-							$this.hide();							
-						}						
-					}					
-					
-					//console.log('filtered on: ' + filter.expr + ' - columnValue: ' + columnValue);
-					
-				});		
-			}); 	
+			var $rows = $tableToFilter.find('tbody tr');
 			
+			fastAddClass($rows, 'filteredRow');			
+			fastShow($rows);
+			stopTimer('get rows, add class, and show them');
+			
+			var numberOfActiveFilters = settings.filterTableOptions.activeFilters.length;
+						
+			var resetFilters = (numberOfActiveFilters > 0) ? false : true;
+					
 			if(resetFilters === true) {
-				$rows.show();
+				fastShow($rows);
+				logOnConsole('No filters active.');
+			} else {
+				for(var j=0; j<numberOfActiveFilters; j++) {
+					var filter = settings.filterTableOptions.activeFilters[j];
+								
+					var columnIndex = filter.columnIndex;
+					
+					logOnConsole('columnIndex: ' + columnIndex);
+					for(var i=0; i<tableDOM.rows.length; i++) { 						
+						if(filter.type === 'checkbox') {
+							columnValue = $.trim(tableDOM.rows[i].cells[columnIndex].innerHTML);
+							
+							logOnConsole('Column value: ' + columnValue + '. Filter expr: ' + filter.expr);
+							
+							if(columnValue !== filter.expr) {								
+								fastRemoveClass(tableDOM.rows[i], 'filteredRow');
+								tableDOM.rows[i].style.display = 'none';								
+							}						
+						} else if(filter.type === 'numeric') {
+							columnValue = $.trim(tableDOM.rows[i].cells[columnIndex].innerHTML);
+							
+							logOnConsole('Column value: ' + columnValue + '. Filter expr: ' + filter.expr);
+							
+							if(filter.expr != columnValue) {
+								fastRemoveClass(tableDOM.rows[i], 'filteredRow');
+								tableDOM.rows[i].style.display = 'none';
+							}
+						} else {
+							columnValue = $.trim(tableDOM.rows[i].cells[columnIndex].innerHTML);
+							
+							logOnConsole('Column value: ' + columnValue + '. Filter expr: ' + filter.expr);
+							
+							var pattern = new RegExp(filter.expr, 'i');	
+							
+							if(pattern.test(columnValue) === false) {								
+								fastRemoveClass(tableDOM.rows[i], 'filteredRow');
+								tableDOM.rows[i].style.display = 'none';						
+							}						
+						}	
+						
+					}
+				}
 			}
+						
+			logOnConsole('resetFilters: ' + resetFilters);
 			
-			//console.log('resetFilters: ' + resetFilters);
+			settings.paginationOptions.linksCreated = false;
 			
-			applyTableStyling(tableID);
+			resetToFirstPage(tableID, true); 
 			
-			resetToFirstPage(tableID); 
-			
-			//updateChildrenCheckBoxes(tableID);
+			stopTimer('applyFilter');
 		};
 		
 		
 		
+		/*
+		* Adds progress icon for the table. 
+		*/
+		addProgessBar = function(tableID) {
+			loadTableSettings(tableID);
+			
+			var height = settings.fixHeaderOptions.height;
+			var width = settings.fixHeaderOptions.width;
+			
+			var $outerDIV = $('#outerDiv_' + tableID);			
+			var $progressDIV = $('<div style="filter: alpha(opacity=70); position: absolute; background-color: white; height: ' + height + 'px; width: ' + width + 'px; z-index: 50" id="progressDiv_' + tableID + '"></div>');
+			
+			$progressDIV.append('<table width="100%" height= "100%"><tr><td valign="middle" align="center"><b>Loading, Please wait...</b></td></tr></table>');
+			
+			$outerDIV.append($progressDIV);
+		};
+		
+		/*
+		* Shows progress icon for the table. 
+		*/
+		showProgess = function(tableID) {
+			$('#progressDiv_' + tableID).show();
+		};
+		
+		
+		/*
+		* Hides the progress icon for the table. 
+		*/
+		hideProgess = function(tableID) {
+			$('#progressDiv_' + tableID).hide();
+		};
+		
+		/**
+		* Get common attributes from the element. ^Optimized 
+		*/ 
 		getAttributes = function(element) {
 			var attr_arr = [];
-			for (var i = 0; i < element.attributes.length; i++){
-			    var attribute = {};
-			    attribute.name = element.attributes[i].name;
-			    attribute.value = element.attributes[i].value;
+			
+			var eligibleAttributes = ['id', 'align', 'width', 'class', 'style'];
+			
+			var elementAttributes = element.attributes;
+			
+			var attribute = null;
+			var attributeName = null;
+			for (var i = 0; i < eligibleAttributes.length; i++){
+			    attribute = new Object();
+				attributeName = eligibleAttributes[i];
+			    attribute.name = attributeName;
+			    attribute.value = element.getAttribute(attributeName);	    
 			    
-			    //if(attribute.value !== null && attribute.value !== 'null' && attribute.value.length > 0) {
-			    	if(attribute.name === 'id' || attribute.name === 'align' || attribute.name === 'class' || attribute.name === 'width' || attribute.name === 'style') {
-			    		//alert('pushing - ' + attribute.name + ': ' + attribute.value);
-			    		attr_arr.push(attribute);
-			    	}
-			    //}
+				attr_arr.push(attribute);
 			}		
 			
 			return attr_arr;
 		};
 		
-		
+		/**
+		* Set common attributes for the element. ^Optimized 
+		*/ 
 		applyAttributes = function(element, attributesList) {
-			$.each(attributesList, function() {				
-				//alert('popping - ' + this.name + ': ' + this.value);
-				if(this.name === 'style') {
-					$(element).css(this.value);
-				} else {
-					$(element).attr(this.name, this.value);
-				}
-			});
+			var elementDOM = element[0];
+			var attribute = null;
+			for(var i=0; i<attributesList.length; i++) {				
+				attribute = attributesList[i];				
+				elementDOM.setAttribute(attribute.name, attribute.value);
+			}
+		};
+		
+		
+		/**
+		* Faster alternative to jQuerys' empty() function. 
+		* Refer: http://jsperf.com/removechildren/8
+		*/
+		fastEmpty = function(container){
+			var containerDOM = container[0];
+			
+			if(containerDOM && containerDOM.childNodes) {
+				var len = containerDOM.childNodes.length;
+				while (len--) {
+					containerDOM.removeChild(containerDOM.lastChild);
+				};
+			}
 		};
 		
 		/**
 		 * Convert object to html. 
 		 */
 		objectToTable = function(objectArray, table) {
+			startTimer('objectToTable');
 			
-			var body = $('tbody', table);
+			var $table = table;
 			
-			body.find('tr').remove();
+			var $body = $table.find('tbody');
 			
+			fastEmpty($body);
+			
+			var $tr = null;
 			for (var i = 0; i < objectArray.length; i++){
 				
-				tr = $('<tr></tr>');
+				$tr = $('<tr></tr>');
 				
-				applyAttributes(tr, objectArray[i].rowAttributes);
+				applyAttributes($tr, objectArray[i].rowAttributes);
 				
+				var cell = null;
 				for (var j=0 ; j<objectArray[i].rowData.length ; j++){
-					var cell = $('<td></td>').html(objectArray[i].rowData[j].val);
+					cell = $('<td></td>').html(objectArray[i].rowData[j].val);
 					applyAttributes(cell, objectArray[i].rowData[j].attributes);
-					tr.append(cell);
+					$tr.append(cell);
 				}
 				
-				body.append(tr);
-				
-				//$.each(objectArray[i].rowAttributes, function() {
-					//if(this.name === 'class') {
-						//var matches = this.value.match(/filteredRow/i);
-						//if(matches === null || matches === 'null') {
-							//tr.hide();
-						//}
-					//}
-				//});
+				$body.append($tr);				
 			}
+			
+			stopTimer('objectToTable');
 		};
 		
 		/**
-		 * Convert html to object. 
+		 * Convert html to object. ^Optimized 
 		 */
 		tableToObject = function(table) {
-
+			startTimer('tableToObject');
+			
+			var $table = table;
+		
 			var objectArray = [];
 			
-			$('tbody tr', table).each(function(i){
-				var row = new Object();
+			var row = null;
+			var rowData = null;
+			var rowAttributes = null;
+			$table.find('tbody tr').each(function(i){
+				var $this = $(this);
 				
-				var rowAttributes = getAttributes(this);
+				row = new Object();
+				rowData = [];				
+				rowAttributes = getAttributes(this);
 				
-				var rowData = [];
-				
-				$('td', this).each(function(j){
-					var col = new Object();
+				var col = null;
+				$this.find('td').each(function(index){
+					col = new Object();
 					
 					col.val = $(this).html();
 					col.attributes = getAttributes(this); 
 					
 					rowData[j] = col;		
-				})
+				});
 				
 				row.rowData = rowData;
 				row.rowAttributes = rowAttributes;
@@ -2601,21 +2953,69 @@
 				objectArray.push(row);
 			});	
 
+			stopTimer('tableToObject');
+			
 			return objectArray;
 		};
 		
+		/**
+		 * Convert object to html. 
+		 */
+		restoreTable = function(newRows, table) {
+			startTimer('restoreTable');
+			
+			if(newRows && newRows.length > 0) {
+				var $body = $(table).find('tbody');
+				
+				var tableBodyDOM = $body[0];
+				
+				fastEmpty($body);
+				
+				for (var i=0; i<newRows.length; i++) { 
+					tableBodyDOM.appendChild(newRows[i]);
+				}	
+			}
+			
+			stopTimer('restoreTable');
+		};
 		
+		/**
+		 * Convert html to object. ^Optimized 
+		 */
+		backupRows = function(table) {
+			startTimer('backupRows');
+			
+			var newRows = null;
+			
+			var tableDOM = table[0];
+			
+			if(tableDOM.rows.length > 0) {	    	    			
+				newRows = new Array();	    
+				for (j=0; j<tableDOM.rows.length; j++) { 
+					newRows[j] = tableDOM.rows[j];   	
+				}								
+			} 
+
+			stopTimer('backupRows');
+			
+			return newRows;
+		};
+		
+		
+		/**
+		* Apply sorting on the table. ^Optimized 
+		*/ 
 		applySort = function(tableID) {
 			
-			//console.log('Sorting callback: ' + tableID);
+			logOnConsole('Sorting callback: ' + tableID);
+			
+			startTimer('applySort');
 			
 			loadTableSettings(tableID);
 			
 			var $mainTable = $('#' + tableID);
 			
 			var $fixedHeaderTable = $('#' + settings.fixHeaderOptions.fixedHeaderTable);
-			
-			var $rows = $mainTable.find(settings.sortOptions.eligibleRowsSelector);
 			
 			var $headers = $fixedHeaderTable.find('thead tr th');
 							
@@ -2631,69 +3031,84 @@
 				$sortingHeaderLink.addClass('tableUtils_sortDown');
 			}
 			
-			//console.log('sortingUp: ' + sortingUp);
+			logOnConsole('sortingUp: ' + sortingUp);
 			
 			var sortFunction = null;
-			if(settings.sortOptions.sortingState.type === 'numeric') {
-				//console.log('numeric sorting');
+			if(settings.sortOptions.sortingState.sortFunction) {
+				logOnConsole('custom sorting');
 				sortFunction = function(a, b) {
-					var x = Number($.trim(String(a.rowData[sortingIndex].val)));
-					var y = Number($.trim(String(b.rowData[sortingIndex].val)));
+					var x = Number($.trim(String(a.cells[sortingIndex].innerHTML)));
+					var y = Number($.trim(String(b.cells[sortingIndex].innerHTML)));
 					
-					//console.log('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));
+					logOnConsole('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));
 					
 					if(sortingUp === true) {
-						return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+						return (settings.sortOptions.sortingState.sortFunction(x, y));
 					} else {
-						return ((x > y) ? -1 : ((x < y) ? 1 : 0));
+						return (-1 * settings.sortOptions.sortingState.sortFunction(x, y));
 					}					
-				};
-			} else if(settings.sortOptions.sortingState.type === 'float') {
-				//console.log('float sorting');
-				sortFunction = function(a, b) {
-					var x = parseFloat($.trim(String(a.rowData[sortingIndex].val)));					
-					var y = parseFloat($.trim(String(b.rowData[sortingIndex].val)));
+				};				
+			} else {
+				if(settings.sortOptions.sortingState.type === 'numeric') {
+					logOnConsole('numeric sorting');
+					sortFunction = function(a, b) {
+						var x = Number($.trim(String(a.cells[sortingIndex].innerHTML)));
+						var y = Number($.trim(String(b.cells[sortingIndex].innerHTML)));
+						
+						logOnConsole('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));
+						
+						if(sortingUp === true) {
+							return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+						} else {
+							return ((x > y) ? -1 : ((x < y) ? 1 : 0));
+						}					
+					};
+				} else if(settings.sortOptions.sortingState.type === 'float') {
+					logOnConsole('float sorting');
+					sortFunction = function(a, b) {
+						var x = parseFloat($.trim(String(a.cells[sortingIndex].innerHTML)));					
+						var y = parseFloat($.trim(String(b.cells[sortingIndex].innerHTML)));
 
-					//console.log('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));					
-					
-					if(sortingUp === true) {
-						return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-					} else {
-						return ((x > y) ? -1 : ((x < y) ? 1 : 0));
-					}					
-				};
-			} else if(settings.sortOptions.sortingState.type === 'alphanumeric') {
-				//console.log('alphanumeric sorting');
-				sortFunction = function(a, b) {
-					var x = $.trim(String(a.rowData[sortingIndex].val).toLowerCase());
-					var y = $.trim(String(b.rowData[sortingIndex].val).toLowerCase());
-					
-					//console.log('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));
-					
-					if(sortingUp === true) {
-						return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-					} else {
-						return ((x > y) ? -1 : ((x < y) ? 1 : 0));
-					}		
-				};
+						logOnConsole('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));					
+						
+						if(sortingUp === true) {
+							return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+						} else {
+							return ((x > y) ? -1 : ((x < y) ? 1 : 0));
+						}					
+					};
+				} else if(settings.sortOptions.sortingState.type === 'alphanumeric') {
+					logOnConsole('alphanumeric sorting');
+					sortFunction = function(a, b) {
+						var x = $.trim(String(a.cells[sortingIndex].innerHTML).toLowerCase());
+						var y = $.trim(String(b.cells[sortingIndex].innerHTML).toLowerCase());
+						
+						logOnConsole('comparing: ' + x + ' - ' + y + '. x >= y: ' + (x >= y));
+						
+						if(sortingUp === true) {
+							return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+						} else {
+							return ((x > y) ? -1 : ((x < y) ? 1 : 0));
+						}		
+					};
+				}
 			}
 				
-			var objectTable = tableToObject($mainTable);
+			var objectTable = backupRows($mainTable);
 				
 			objectTable.sort(sortFunction);	
 				
-			objectToTable(objectTable, $mainTable);
+			restoreTable(objectTable, $mainTable);
 			
 			$mainTable.trigger('tableUpdated');
 			
 			if(settings.filterTableOptions.required === true) {
 				applyFilter(tableID);
-				applyTableStyling(tableID);
+			} else {
+				resetToFirstPage(tableID, true);	
 			}
 			
-			resetToFirstPage(tableID);	
-
-			//updateChildrenCheckBoxes(tableID);			
+			stopTimer('applySort');
 		};
 		
 		
@@ -2711,7 +3126,7 @@
 			
 			var $rows = $mainTable.find(selector);
 			
-			var $checkboxes = $rows.find('td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ')').find('input:checkbox');
+			var $checkboxes = $rows.find('td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ')').find('input:checkbox');
 			
 			$checkboxes.each(function(index) {
 				$(this).attr('checked', true);
@@ -2722,17 +3137,15 @@
 
 			updateSelectedRecords(tableID);	
 			
-			//if(isMasterCheckBoxChecked === true) {
-				//$('#masterCBAdditionalControls_' + tableID).show();
 			$('#selectAllItemsControl_' + tableID).hide();
 			$('#deSelectAllItemsControl_' + tableID).show();				
-			//}
-			
 		};
 		
 		
 		
 		deSelectAllItems = function(tableID) {
+			startTimer('deSelectAllItems');
+			
 			loadTableSettings(tableID);			
 			
 			var selector = 'tbody tr';
@@ -2745,20 +3158,20 @@
 			
 			var $rows = $mainTable.find(selector);
 			
-			var $checkboxes = $rows.find('td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ')').find('input:checkbox');
+			var $checkboxes = $rows.find('td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ')').find('input:checkbox');
 			
 			$checkboxes.each(function(index) {
-				$(this).attr('checked', false);
-				$(this).trigger('change'); 
+				$(this).attr('checked', false).trigger('change'); 
 			});	
 			
 			$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false);			
 
 			updateSelectedRecords(tableID);	
 			
-			//$('#selectAllItemsControl_' + tableID).hide();
 			$('#deSelectAllItemsControl_' + tableID).hide();
-			$('#masterCBAdditionalControls_' + tableID).hide();			
+			$('#masterCBAdditionalControls_' + tableID).hide();	
+
+			stopTimer('deSelectAllItems');
 		};
 		
 		
@@ -2773,10 +3186,27 @@
 			if(settings.filterTableOptions.required === true) {
 				selector += '.filteredRow';
 			}
-			var totalSelectedRecords = $mainTable.find(selector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ')').find('input:checkbox:checked').length; 
 			
-			if(totalSelectedRecords > 0) {			
-				settings.masterCheckBoxOptions.message.message = '<b>' + totalSelectedRecords + '</b> Item(s) Selected.';
+			logOnConsole('selector: ' + selector + ' td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ') input:checkbox:checked');
+			var $totalSelectedRecords = $mainTable.find(selector + ' td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ') input:checkbox:checked');
+			var totalNoOfSelectedRecords = $totalSelectedRecords.length; 
+			logOnConsole('settings.masterCheckBoxOptions.columnIndex: ' + settings.masterCheckBoxOptions.columnIndex + '. totalNoOfSelectedRecords: ' + totalNoOfSelectedRecords);
+			
+			if(settings.paginationOptions.preserveSelection) {
+				for(var x=0; x<$totalSelectedRecords.length; x++) {
+					logOnConsole('Checking: ' + $totalSelectedRecords[x].value + '. Checked: ' + $totalSelectedRecords[x].checked);
+					if(($.inArray($totalSelectedRecords[x].value, settings.paginationOptions.previouslySelectedRecords) !== -1) && $totalSelectedRecords[x].checked) {
+						totalNoOfSelectedRecords--;
+						logOnConsole('Matching selection found.');
+					}
+				}
+				logOnConsole('Selected records: ' + settings.paginationOptions.previouslySelectedRecords.length);
+				totalNoOfSelectedRecords += settings.paginationOptions.previouslySelectedRecords.length;
+			}
+			
+			logOnConsole('totalNoOfSelectedRecords: ' + totalNoOfSelectedRecords);
+			if(totalNoOfSelectedRecords > 0) {			
+				settings.masterCheckBoxOptions.message.message = '<b>' + totalNoOfSelectedRecords + '</b> Item(s) Selected.';
 				pushMessage(tableID, settings.masterCheckBoxOptions.message); 
 			} else {
 				popMessage(tableID, settings.masterCheckBoxOptions.message); 
@@ -2802,50 +3232,59 @@
 		* Toggles children check boxes depending on the value of master check box. 		
 		*/
 		toggleChildrenCheckBoxes = function(tableID, isMasterCheckBoxChecked) {			
-			//console.log('Master checkbox changed: ' + tableID);
+			logOnConsole('Master checkbox changed: ' + tableID);
+			
+			startTimer('toggleChildrenCheckBoxes');
 			
 			loadTableSettings(tableID);
 			
 			var $mainTable = $('#' + tableID);	
 			
-			var $eligibleCheckBoxes = $mainTable.find(settings.masterCheckBoxOptions.eligibleRowsSelector).find('td:nth-child(' + (settings.masterCheckBoxOptions.columnNumber) + ')').find('input:checkbox');
+			var eligibleCheckBoxesRows = $mainTable.find(settings.masterCheckBoxOptions.eligibleRowsSelector).get();//.find('td:nth-child(' + (settings.masterCheckBoxOptions.columnIndex) + ')').find('input:checkbox');
 			
-			//console.log('eligibleRowsSelector: ' + settings.masterCheckBoxOptions.eligibleRowsSelector);
-			//console.log('num: ' + $eligibleCheckBoxes.length); 
-			
-			$eligibleCheckBoxes.each(function(index) {
-				$(this).attr('checked', isMasterCheckBoxChecked);
-				//console.log('toggling');
-				if(isMasterCheckBoxChecked) {
-					$(this).closest('tr').addClass('tableUtils_selectedRow');					
-				} else {
-					$(this).closest('tr').removeClass('tableUtils_selectedRow');
+			for(var i=0; i<eligibleCheckBoxesRows.length; i++) {
+				var chckbox = eligibleCheckBoxesRows[i].cells[settings.masterCheckBoxOptions.columnIndex - 1].getElementsByTagName('input');
+				if(chckbox && chckbox.length > 0) {
+					for(var j=0; j<chckbox.length; j++) {
+						if(chckbox[j].type === 'checkbox') {
+							chckbox[j].checked = isMasterCheckBoxChecked;
+							//$(chckbox[j]).trigger('change');
+							fireEvent(chckbox[j], 'change');
+							
+							if(!chckbox[j].checked) {
+								removeItemFromPreviousSelection(chckbox[j].value, tableID);
+							}
+							
+							if(isMasterCheckBoxChecked) {								
+								fastAddClass(fastGetParent(chckbox[j], 'tr'), 'tableUtils_selectedRow');
+							} else {								
+								fastRemoveClass(fastGetParent(chckbox[j], 'tr'), 'tableUtils_selectedRow');
+							}
+						}
+					}
 				}
-			}); 
-
-			updateSelectedRecords(tableID);	
+				
+			}
 			
-			/*if(isMasterCheckBoxChecked === true) {
-				$('#' + settings.masterCheckBoxOptions.masterCheckBox).trigger('showControls');			
-			} else {				
-				$('#' + settings.masterCheckBoxOptions.masterCheckBox).trigger('hideControls');					
-			}*/
+			updateSelectedRecords(tableID);
 
 			saveTableSettings(tableID);
+			
+			stopTimer('toggleChildrenCheckBoxes');
 		};
 		
 		
 		/**
 		* Callback function when a checkbox is value is toggled. 
 		*/ 
-		childCheckBoxToggledHandler = function(tableID) {		
-			//console.log('Children checkbox changed: ' + tableID);
+		childCheckBoxToggledHandler = function(tableID, checkboxElement) {		
+			logOnConsole('Children checkbox changed: ' + tableID);
 			
 			loadTableSettings(tableID);
 			
 			var $mainTable = $('#' + tableID);
 			
-			var $eligibleCheckBoxCells = $mainTable.find(settings.masterCheckBoxOptions.eligibleRowsSelector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnNumber + ')');
+			var $eligibleCheckBoxCells = $mainTable.find(settings.masterCheckBoxOptions.eligibleRowsSelector).find('td:nth-child(' + settings.masterCheckBoxOptions.columnIndex + ')');
 			
 			var $allCheckBoxes = $eligibleCheckBoxCells.find('input:checkbox');
 			var $checkedCheckBoxes = $eligibleCheckBoxCells.find('input:checkbox:checked');
@@ -2863,43 +3302,40 @@
 				$masterCheckBox.attr('checked', false);
 			}					
 			
+			if(checkboxElement && !checkboxElement.checked) {
+				removeItemFromPreviousSelection(checkboxElement.value, tableID);
+			}
+			
 			updateSelectedRecords(tableID);	
 			
 			saveTableSettings(tableID);
 		}; 
 		
-		
-		/**
-		* Callback function when a radio button is clicked. 
-		*/ 
 		radioButtonClickEvent = function() {
 			methods.getSelectedItem();			
 		};
-			
-		
-		
-		
-		
-		resetToFirstPage = function(tableID) {
-			goToPage(tableID, 1); 
+				
+		resetToFirstPage = function(tableID, stayOnCurrentPage) {
+			logOnConsole('Resetting to page 1 for table: ' + tableID);
+			goToPage(tableID, 1, stayOnCurrentPage); 
 			updateSelectedRecords(tableID);
 		};
-		
 			
 		updatePageSize = function(tableID) {
 			loadTableSettings(tableID);
 			settings.paginationOptions.pageSize = $('#pageSizeSelect_' + tableID).find('option:selected').val();
+			settings.paginationOptions.linksCreated = false;
 			if(settings.masterCheckBoxOptions.required === true) {
 				$('#' + settings.masterCheckBoxOptions.masterCheckBox).attr('checked', false).trigger('hideControls');
-			}
-			//console.log('new page size: ' + settings.pageSize);
+			}						
+			logOnConsole('new page size: ' + settings.pageSize);
 			saveTableSettings(tableID);
 			
 			resetToFirstPage(tableID);
 		};	
 		
-		
 		updatePageLinks = function(tableID) {
+			startTimer('updatePageLinks');
 		
 			loadTableSettings(tableID);
 			
@@ -2939,38 +3375,53 @@
 			
 
 			if(currentPage == 1) {
-					//console.log('first page. prev link: ' + $('#prevLink_' + tableID).html());
+				logOnConsole('first page. prev link: ' + $('#prevLink_' + tableID).html());
 				$('#prevLink_' + tableID).find('a').attr('disabled', true);
 			} else { 
 				$('#prevLink_' + tableID).find('a').attr('disabled', false);
 			}
 			
 			if(currentPage == settings.paginationOptions.numberOfPageLinks) {
-				//console.log('last page. next link: ' + $('#nextLink_' + tableID).html());
+				logOnConsole('last page. next link: ' + $('#nextLink_' + tableID).html());
 				$('#nextLink_' + tableID).find('a').attr('disabled', true);
 			} else { 
 				$('#nextLink_' + tableID).find('a').attr('disabled', false);
 			}
 			
-			
+			logOnConsole('settings.paginationOptions.type: ' + settings.paginationOptions.type);
 			if(settings.paginationOptions.type !== 'numeric') {
-				$('#recordsOnThisPageInfo_' + tableID).html('<b>' + recordsOnThisPage + '</b>'); 
+				if(settings.paginationOptions.serverSide) {
+					$('#recordsOnThisPageInfo_' + tableID).html('&nbsp;&nbsp;Records: <b>' + numRows + '</b>').show(); 					
+					$('#totalRecordsInfo_' + tableID).hide();
+				} else {
+					$('#recordsOnThisPageInfo_' + tableID).html('&nbsp;&nbsp;Records: <b>' + recordsOnThisPage + '</b>').show();
+					$('#totalRecordsInfo_' + tableID).html('&nbsp;&nbsp;Total Records: <b>' + numRows + '</b>').show();
+				}
+				$('#pageSizeSelectSpan_' + tableID).hide();
+				$('#pageSizeSelect_' + tableID).hide();
 				$('#pageSizeInfo_' + tableID).hide();
 			} else {
-				$('#recordsOnThisPageInfo_' + tableID).hide(); 
-				$('#pageSizeInfo_' + tableID).html('<b>' + settings.paginationOptions.pageSize + '</b>'); 
+				logOnConsole('recordsOnThisPage: ' + recordsOnThisPage);
+				$('#recordsOnThisPageInfo_' + tableID).hide(); 				
+				$('#pageSizeSelectSpan_' + tableID).show();
+				$('#pageSizeSelect_' + tableID).val(settings.paginationOptions.pageSize).show();
+				$('#pageSizeInfo_' + tableID).html('&nbsp;&nbsp;Page Size: <b>' + settings.paginationOptions.pageSize + '</b>').show(); 
+				$('#totalRecordsInfo_' + tableID).html('&nbsp;&nbsp;Total Records: <b>' + numRows + '</b>').show(); 
 			}
 			
-			$('#currentPageInfo_' + tableID).html('<b>' + currentPage + '</b> of ' + numberOfPageLinks); 
-			$('#totalRecordsInfo_' + tableID).html('<b>' + numRows + '</b>'); 			
+			$('#currentPageInfo_' + tableID).html('&nbsp;&nbsp;Page: <b>' + currentPage + '</b> of ' + numberOfPageLinks); 						
 		
 			saveTableSettings(tableID);	
+			
+			stopTimer('updatePageLinks');
 			
 		};
 		
 		
 		createLinks = function(tableID) {
-			//console.log('creating links for: ' + tableID);
+			logOnConsole('creating links for: ' + tableID);
+			
+			startTimer('createLinks');
 			
 			loadTableSettings(tableID);
 			
@@ -2978,165 +3429,207 @@
 			
 			var $rows = $mainTable.find(settings.paginationOptions.eligibleRowsSelector);
 			
+			logOnConsole('settings.paginationOptions.eligibleRowsSelector: ' + settings.paginationOptions.eligibleRowsSelector);
+			
 			var $links = $('<span></span>');
 			
-			if(settings.paginationOptions.type === 'numeric') {
-				var numRows = $rows.length;
+			var numRows = $rows.length;
 				
-				if(settings.paginationOptions.serverSide === true) {
-					numRows = settings.paginationOptions.totalRows; 
-				}
-				
-				//console.log('total rows: ' + numRows);
-				
-				var pageSize = settings.paginationOptions.pageSize;
+			if(settings.paginationOptions.serverSide === true) {
+				numRows = settings.paginationOptions.totalRows; 
+			}
 			
-				var numberOfPageLinks = Math.ceil(numRows / pageSize);
+			//if(numRows > 0) {
+				if(settings.paginationOptions.type === 'numeric') {				
+					logOnConsole('total rows: ' + numRows);
+					
+					var pageSize = settings.paginationOptions.pageSize;
 				
-				settings.paginationOptions.numberOfPageLinks = numberOfPageLinks;
-				
+					var numberOfPageLinks = Math.ceil(numRows / pageSize);
+					
+					settings.paginationOptions.numberOfPageLinks = numberOfPageLinks;
+									
+					var $prevLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'prevLink_' + tableID);
+					var $prevLink = $('<a href="#">Prev</a>');
+					$prevLink.on('click', function(e) {
+						e.preventDefault();
+						previousPage(tableID);
+					});
+					$prevLinkContent.append($prevLink);				
+					$links.append($prevLinkContent);
+					
+					
+					for(var page=1; page<=numberOfPageLinks; page++) {
+						logOnConsole('creating page link: ' + page);
+						var $pageLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'paginationPage_' + tableID + '_' + page);
+						var $pageLink = $('<a href="#" onclick="return goToPage(\'' + tableID + '\', '+ page + ');">' + page + '</a>');
+						
+						$pageLinkContent.append($pageLink);				
+						$links.append($pageLinkContent);						
+					}
+					
+					
+					var $nextLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'nextLink_' + tableID);
+					var $nextLink = $('<a href="#">Next</a>');
+					$nextLink.on('click', function(e) {
+						e.preventDefault();
+						nextPage(tableID);
+					});
+					$nextLinkContent.append($nextLink);				
+					$links.append($nextLinkContent);
+					
+					var $pageSelect = $('#pageSelect_' + tableID);
+					$pageSelect.empty();
+					for(var page = 1; page<= numberOfPageLinks; page++) {
+						$pageSelect.append($('<option>', {
+							text: page, value: page
+						}));
+					}				
+					$pageSelect.val(settings.paginationOptions.currentPage);
+					
+				} else if(settings.paginationOptions.type === 'alphabetic' || settings.paginationOptions.type === 'alphanumeric') {
 								
-				var $prevLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'prevLink_' + tableID);
-				var $prevLink = $('<a href="#">Prev</a>');
-				$prevLink.on('click', function(e) {
-					e.preventDefault();
-					previousPage(tableID);
-				});
-				$prevLinkContent.append($prevLink);				
-				$links.append($prevLinkContent);
-				
-				
-				for(var page=1; page<=numberOfPageLinks; page++) {
+					var numberOfPageLinks = 26;
+					if(settings.paginationOptions.type === 'alphanumeric') {
+						numberOfPageLinks = 36;
+					} 
 					
-					//console.log('creating page link: ' + page);
-					var $pageLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'paginationPage_' + tableID + '_' + page);
-					var $pageLink = $('<a href="#" onclick="return goToPage(\'' + tableID + '\', '+ page + ');">' + page + '</a>');
+					logOnConsole('no of pages: ' + numberOfPageLinks);
 					
-					$pageLinkContent.append($pageLink);				
-					$links.append($pageLinkContent);						
+					settings.paginationOptions.numberOfPageLinks = numberOfPageLinks;				
 					
-				}
+					var $prevLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'prevLink_' + tableID);
+					var $prevLink = $('<a href="#">Prev</a>');
+					$prevLink.on('click', function(e) {
+						e.preventDefault();
+						previousPage(tableID);
+					});
+					$prevLinkContent.append($prevLink);				
+					$links.append($prevLinkContent);
+					
+					
+					for(var page=1; page<=numberOfPageLinks; page++) {
+						var $pageLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'paginationPage_' + tableID + '_' + page);
+						var $pageLink = $('<a href="#" onclick="return goToPage(\'' + tableID + '\', '+ page + ');">' + settings.paginationOptions.pageMappings[page] + '</a>');
+						
+						$pageLinkContent.append($pageLink);				
+						$links.append($pageLinkContent);						
+					}
+					
+					
+					var $nextLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'nextLink_' + tableID);
+					var $nextLink = $('<a href="#">Next</a>');
+					$nextLink.on('click', function(e) {
+						e.preventDefault();
+						nextPage(tableID);
+					});
+					$nextLinkContent.append($nextLink);				
+					$links.append($nextLinkContent);
+					
+					var $pageSelect = $('#pageSelect_' + tableID);
+					$pageSelect.empty();
+					for(var page = 1; page<= numberOfPageLinks; page++) {
+						$pageSelect.append($('<option>', {
+							text: settings.paginationOptions.pageMappings[page], value: page
+						}));
+					}
+					$pageSelect.val(settings.paginationOptions.currentPage);
+				}	
 				
+				$('#paginationLinks_' + tableID).empty().append($links);
 				
-				var $nextLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'nextLink_' + tableID);
-				var $nextLink = $('<a href="#">Next</a>');
-				$nextLink.on('click', function(e) {
-					e.preventDefault();
-					nextPage(tableID);
-				});
-				$nextLinkContent.append($nextLink);				
-				$links.append($nextLinkContent);
+				$('#paginationStats_' + tableID).show();
 				
-				var $pageSelect = $('#pageSelect_' + tableID);
-				$pageSelect.empty();
-				for(var page = 1; page<= numberOfPageLinks; page++) {
-					$pageSelect.append($('<option>', {
-						text: page, value: page
-					}));
-				}				
-				$pageSelect.val(settings.paginationOptions.currentPage);
+				logOnConsole(numRows + ' records found.');
 				
-			
-			} else if(settings.paginationOptions.type === 'alphabetic' || settings.paginationOptions.type === 'alphanumeric') {
-							
-				var numberOfPageLinks = 26;
-				if(settings.paginationOptions.type === 'alphanumeric') {
-					numberOfPageLinks = 36;
+				settings.paginationOptions.message.message = '<b>' + numRows + '</b> record(s) found.';
+				pushMessage(tableID, settings.paginationOptions.message); 
+				
+				settings.paginationOptions.linksCreated = true;
+			//} else {
+
+			if(numRows < 1) {
+				if(settings.paginationOptions.type === 'numeric') {
+					$('#paginationLinks_' + tableID).empty();
 				} 
+								
+				logOnConsole('No records found.');
 				
-				//console.log('no of pages: ' + numberOfPageLinks);
+				settings.paginationOptions.message.message = '<b>No records found.</b>';
+				pushMessage(tableID, settings.paginationOptions.message); 
 				
-				settings.paginationOptions.numberOfPageLinks = numberOfPageLinks;				
-				
-				var $prevLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'prevLink_' + tableID);
-				var $prevLink = $('<a href="#">Prev</a>');
-				$prevLink.on('click', function(e) {
-					e.preventDefault();
-					previousPage(tableID);
-				});
-				$prevLinkContent.append($prevLink);				
-				$links.append($prevLinkContent);
-				
-				
-				for(var page=1; page<=numberOfPageLinks; page++) {
-					
-					var $pageLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'paginationPage_' + tableID + '_' + page);
-					var $pageLink = $('<a href="#" onclick="return goToPage(\'' + tableID + '\', '+ page + ');">' + settings.paginationOptions.pageMappings[page] + '</a>');
-					
-					$pageLinkContent.append($pageLink);				
-					$links.append($pageLinkContent);						
-					
-				}
-				
-				
-				var $nextLinkContent = $('<span class="tableUtils_paginationLink"></span>').attr('id', 'nextLink_' + tableID);
-				var $nextLink = $('<a href="#">Next</a>');
-				$nextLink.on('click', function(e) {
-					e.preventDefault();
-					nextPage(tableID);
-				});
-				$nextLinkContent.append($nextLink);				
-				$links.append($nextLinkContent);
-				
-				var $pageSelect = $('#pageSelect_' + tableID);
-				$pageSelect.empty();
-				for(var page = 1; page<= numberOfPageLinks; page++) {
-					$pageSelect.append($('<option>', {
-						text: settings.paginationOptions.pageMappings[page], value: page
-					}));
-				}
-				$pageSelect.val(settings.paginationOptions.currentPage);
-			}						
-			
-			
-			var $paginationLinks = $('#paginationLinks_' + tableID);
-			
-			$($paginationLinks).empty();
-			
-			$($paginationLinks).append($links);
-			
+				settings.paginationOptions.linksCreated = false;
+			}
+						
 			saveTableSettings(tableID);
+			stopTimer('createLinks');
 			
 		};
 		
 		
-		goToPage = function(tableID, pageNumber) {
+		goToPage = function(tableID, pageNumber, stayOnCurrentPage) {
 			loadTableSettings(tableID);
+			var goToPageNumber = pageNumber;
+			logOnConsole('stayOnCurrentPage: ' + stayOnCurrentPage + '. settings.paginationOptions.type: ' + settings.paginationOptions.type);
+			if(stayOnCurrentPage && settings.paginationOptions.type !== 'numeric') {
+				goToPageNumber = settings.paginationOptions.currentPage;
+			}
+			logOnConsole('Going to page: ' + goToPageNumber + ' for table: ' + tableID + '. Current page: ' + settings.paginationOptions.currentPage);
+			
 			if(settings.paginationOptions.required === true) {
 				if(settings.paginationOptions.serverSide === false) {								
-					if(pageNumber == 1) {
+					logOnConsole('links created: ' + settings.paginationOptions.linksCreated);
+					if(!settings.paginationOptions.linksCreated) {
+						logOnConsole('Creating links');
 						createLinks(tableID);
-					}
-					if(showPage(tableID, pageNumber) == 0 && (settings.paginationOptions.type === 'alphabetic' || settings.paginationOptions.type === 'alphanumeric')) {
-				
-						settings.paginationOptions.message.message = 'No records found on this Page.';
-						pushMessage(tableID, settings.paginationOptions.message); 
-				
-						//var nextPage = pageNumber + 1;
-						//if(nextPage > 0 && nextPage <= settings.paginationOptions.numberOfPageLinks) {
-							//console.log('No records found for page: ' + settings.paginationOptions.pageMappings[pageNumber] + '. Showing page: ' + settings.paginationOptions.pageMappings[nextPage]);
-							//goToPage(tableID, nextPage);
-						//}
-					} else {
-						popMessage(tableID, settings.paginationOptions.message);
-					}
+						logOnConsole('End creating links');
+					}					
+					showPage(tableID, pageNumber);					
+					applyTableStyling(tableID); 
 				} else {
-					fetchPage(tableID, pageNumber); 
-				}
+					fetchPage(tableID, goToPageNumber); 
+				}				
+			} else {
 				applyTableStyling(tableID); 
 			}
 			return false;
 		};
 		
+		var timers = new Array();		
+		startTimer = function(task) {
+			var depth = '';
+			for(var i=0; i<=timers.length; i++) {
+				depth += '> ';
+			}
+			logOnConsole(depth + 'Starting: ' + task);
+			var start = new Date().getTime();
+			timers.push(start);			
+		};
+		
+		stopTimer = function(task) {
+			if(timers.length > 0) {
+				var end = new Date().getTime();
+				var start = timers.pop();
+				var depth = '';
+				for(var i=0; i<=timers.length; i++) {
+					depth += '< ';
+				}
+				logOnConsole(depth + 'Complete: ' + task + ' in ' + (end - start) + ' ms.');				
+			} else {
+				logOnConsole('No active timers found.');
+			}
+		};
 		
 		showPage = function(tableID, pageNumber) {
-			//console.log('showing page: ' + pageNumber + ' for: ' + tableID);
+			startTimer('showPage');
+						
+			logOnConsole('showing page: ' + pageNumber + ' for: ' + tableID);
 			
 			loadTableSettings(tableID);
 			
 			var rowsOnPage = 0;
 			
-			//console.log('no of pages: ' + settings.paginationOptions.numberOfPageLinks);
+			logOnConsole('no of pages: ' + settings.paginationOptions.numberOfPageLinks);
 			if(pageNumber > 0 && pageNumber <= settings.paginationOptions.numberOfPageLinks) {
 				
 				
@@ -3150,14 +3643,14 @@
 				
 				var pageSize = settings.paginationOptions.pageSize;
 				
-				//console.log('numRows: ' + numRows);
+				logOnConsole('numRows: ' + numRows);
 				
 				if(settings.paginationOptions.type === 'numeric') {					
 					var startRow = ((pageNumber - 1) * pageSize) + 1;
-					//console.log('startRow: ' + startRow);
+					logOnConsole('startRow: ' + startRow);
 					
 					var endRow = Number(startRow) + Number(pageSize);
-					//console.log('endRow: ' + endRow);
+					logOnConsole('endRow: ' + endRow);
 					
 					for(var i=0; i<numRows; i++) {
 						if((i+1)>=startRow && (i+1)<endRow) {
@@ -3170,15 +3663,15 @@
 						}
 					}					
 				} else if(settings.paginationOptions.type === 'alphabetic' || settings.paginationOptions.type === 'alphanumeric') {					
-					//console.log('alphanumeric filtering');
+					logOnConsole('alphanumeric filtering');
 					
 					var pageMappings = settings.paginationOptions.pageMappings;
 					
 					
 					for(var i=0; i<numRows; i++) {
-						//console.log('row: ' + i);
+						logOnConsole('row: ' + i);
 						var columnValue = $.trim($rows.eq(i).find('td:nth-child(' + settings.paginationOptions.columnIndex + ')').text()).substring(0, 1).toUpperCase();
-						//console.log(settings.paginationOptions.columnIndex + ' column value: ' + columnValue);
+						logOnConsole(settings.paginationOptions.columnIndex + ' column value: ' + columnValue);
 						if(columnValue === pageMappings[pageNumber]) {
 							$rows.eq(i).addClass('currentPageRow');
 							$rows.eq(i).show();
@@ -3195,23 +3688,23 @@
 				updatePageLinks(tableID);				
 			}
 			
-			return rowsOnPage;
-			//updateChildrenCheckBoxes(tableID);
+			stopTimer('showPage');
 			
+			return rowsOnPage;
 		};
 		
 		
 		previousPage = function(tableID) {
 			loadTableSettings(tableID);
 			
-			goToPage(tableID, settings.paginationOptions.currentPage - 1);
+			goToPage(tableID, Number(settings.paginationOptions.currentPage) - 1);
 		};
 		
 		
 		nextPage = function(tableID) {
 			loadTableSettings(tableID);
 			
-			goToPage(tableID, settings.paginationOptions.currentPage + 1);
+			goToPage(tableID, Number(settings.paginationOptions.currentPage) + 1);
 		};
 		
 		
@@ -3231,82 +3724,125 @@
 		* Fetches a page of record. 
 		*/
 		fetchPage = function(tableID, page) {
+			startTimer('fetchPage');
+			logOnConsole('Fetching page: ' + page + ' for table: ' + tableID);
+			loadTableSettings(tableID);
+			
+			logOnConsole('settings.paginationOptions.columnIndex - 1: ' + (settings.paginationOptions.columnIndex - 1));
 			
 			// The parameters we need to pass for fetching the page. 
 			var fetchQueryParameters = {
-				//fieldNames: settings.columns,
 				pageSize: settings.paginationOptions.pageSize,				
 				currentPage: page, 
-				start: (((page-1) * settings.paginationOptions.pageSize)),
+				start: (((page-1) * settings.paginationOptions.pageSize) + 1),
 				end: (page * settings.paginationOptions.pageSize),
 				sortingDetails: settings.sortOptions.sortingState,	 				
 				filteringDetails: settings.filterTableOptions.activeFilters,
 				type: settings.paginationOptions.type,
-				columnIndex: settings.paginationOptions.columnIndex
+				columnName: settings.columns[settings.paginationOptions.columnIndex - 1].value, 
+				columnIndex: settings.paginationOptions.columnIndex 		
 			};
 			
+			var additionalParams = new Array();
+			if(settings.paginationOptions.params) {
+				additionalParams = settings.paginationOptions.params;
+			}
 			
+			var finalParams = new Object();
+			finalParams.params = JSON.stringify(fetchQueryParameters);
+			for(var i=0; i<additionalParams.length; i++) {
+				finalParams[additionalParams[i].name] = additionalParams[i].value;
+			}
+						
 			// Make an ajax call to fetch the page. 
 			$.ajax({
 			
-				// The url from where data will be fetched. 
 				url: settings.paginationOptions.fetchUrl, 
 				
-				// The query parameters that will be passed with the request. 
-				data: { params: JSON.stringify(fetchQueryParameters) },	
+				data: finalParams,	
 				
-				// Any pre-processing to be done before making the request. 
 				beforeSend: function() {	
-					settings.paginationOptions.message.message = '<i>Fetching Records, please wait...</i>';
-					settings.paginationOptions.message.block = true;
-					pushMessage(tableID, settings.paginationOptions.message); 
-					$('#outermostDiv_' + tableID).attr('disabled', true);
-					// Show the loading notification. 
-					//$('#loadingNotificationIcon_paginate').fadeIn('fast');					
+					if(!settings.paginationOptions.beforeSend || (settings.paginationOptions.beforeSend && (settings.paginationOptions.beforeSend() === true))) {
+						settings.paginationOptions.message.message = '<i>Fetching Records, please wait...</i>';
+						settings.paginationOptions.message.block = true;
+						pushMessage(tableID, settings.paginationOptions.message); 
+					} else {
+						return false;
+					}
+					
+					saveCurrentSelection(tableID);
+					
+					showProgess(tableID);
+					
+					startTimer('fetchPage ajax call');
 				}, 	
 				
-				// Callback to be called after the page is fetched. 
 				success: function(data) {
-					// If the request was executed successfully, then update the pagination information in the settings array. 
+					settings.paginationOptions.message.block = false;
+					popMessage(tableID, settings.paginationOptions.message);
+					
+					stopTimer('fetchPage ajax call');
+					
+					startTimer('process fetched records');
+
+					logOnConsole('Got page: ' + page + ' for table: ' + tableID);
+					loadTableSettings(tableID);
+					
 					settings.paginationOptions.currentPage = fetchQueryParameters.currentPage;
 					settings.paginationOptions.start = fetchQueryParameters.start;
 					settings.paginationOptions.end = fetchQueryParameters.end;										
 					settings.paginationOptions.fetchedData = data; 
 					
-					if(data && data.length>0) {
-						settings.paginationOptions.totalRows = data[0].totalRows; 
+					if(settings.paginationOptions.useDynamicData) {
+						settings.paginationOptions.totalRows = data.totalRows;
 					} else {
-						settings.paginationOptions.totalRows = 0; 
+						if(data && data.length>0) {						
+							settings.paginationOptions.totalRows = data[0].totalRows; 
+						} else {
+							settings.paginationOptions.totalRows = 0; 
+						}
 					}
+					
+					logOnConsole('totalRows: ' + settings.paginationOptions.totalRows);
 					
 					saveTableSettings(tableID);
 					
 					createLinks(tableID); 
+					
 					updatePageLinks(tableID);
 					
-					deSelectAllItems(tableID);
-					
-					// Reset page related data. 
-					//reset();
-					
-					// Update the table with contents of newly fetched page. 
-					populateTable(tableID, data); 
+					if(settings.paginationOptions.useDynamicData) {
+						populateDynamicTable(tableID, data); 
+					} else {
+						populateTable(tableID, data); 
+					}
 					
 					$('#' + tableID).trigger('tableUpdated');
 					
-					// Update the pagination links. 
-					//updateLinks();
+					applyTableStyling(tableID); 
 					
-					// Update the pagination information. 
-					//updatePaginationInformation(); 
+					updateSelectedRecords(tableID);
 					
-					// Hide the loading notification. 
-					//$('#loadingNotificationIcon_paginate').fadeOut('fast');
+					stopTimer('process fetched records');
 				}, 	
 				
-				complete: function() {
+				error: function(xhr, textStatus, error) {
 					popMessage(tableID, settings.paginationOptions.message);
-					$('#outermostDiv_' + tableID).attr('disabled', false);
+					settings.paginationOptions.message.message = '<b>The following error occurred while loading data: ' + getAjaxErrorDescription(xhr, textStatus, error) + '</b>.';
+					pushMessage(tableID, settings.paginationOptions.message); 
+				},
+				
+				complete: function() {					
+					if(settings.paginationOptions.complete) {
+						settings.paginationOptions.complete();
+					}
+										
+					restorePreviousSelection(tableID);
+					
+					hideProgess(tableID);
+					
+					stopTimer('fetchPage');
+					//$('#outermostDiv_' + tableID).attr('disabled', false);
 				},
 				
 				// Type of data to be returned from server. 
@@ -3314,7 +3850,9 @@
 				
 				// Do not cache the request. 
 				cache: false
-			});			
+			});		
+
+			
 		};
 		
 		
@@ -3322,21 +3860,26 @@
 		* Populates the table with newly fetced rows. 
 		*/
 		populateTable = function(tableID, data) {			 			
-			// Clear all rows previously present in the table. 
+			startTimer('populateTable');
+			
+			loadTableSettings(tableID);
+			
 			var $mainTable = $('#' + tableID); 
 						
-			//console.log('Rows before populating table: ' + $mainTable.find('tbody tr').length);
+			logOnConsole('Rows before populating table: ' + $mainTable.find('tbody tr').length);
 			
 			$mainTable.find('tbody').empty();
 			
-			//console.log('Rows before clearing table: ' + $mainTable.find('tbody tr').length);
+			logOnConsole('Rows before clearing table: ' + $mainTable.find('tbody tr').length);
 			
 			$.each(data, function(index, row) {
 				var newColumns = [];
 				
-				//console.log('Creating row: ' + index);
+				logOnConsole('Creating row: ' + index);
 				
 				$.each(settings.columns, function(index, column) {
+					logOnConsole('Column label: ' + column.label + '. Name: ' + column.name);
+					
 					var newColumn = null;
 					
 					var columnData = '';
@@ -3349,21 +3892,64 @@
 					if(column.style) {
 						newColumn = new Object();
 						newColumn.html = columnData;
-						newColumn.props = column.style;
+						if(column.style) {
+							newColumn.props = column.style;
+						}
 						
-						//console.log('Styled Column ' + index + ' - ' + columnData);
+						logOnConsole('Styled Column ' + index + ' - ' + columnData);
 					} else {
 						newColumn = columnData;
 						
-						//console.log('Simple Column ' + index + ' - ' + columnData);
+						logOnConsole('Simple Column ' + index + ' - ' + columnData);
 					}
 					
 					newColumns.push(newColumn);
 				}); 
-				
+								
 				methods.addRow({ tableID: tableID, columns: newColumns });
-			});			
+			});	
+
+			stopTimer('populateTable');
+		};
+		
+		
+		/**
+		* Populates the table with newly fetced rows. 
+		*/
+		populateDynamicTable = function(tableID, data) {			 			
+			startTimer('populateTable');
+			
+			loadTableSettings(tableID);
+			
+			var $mainTable = $('#' + tableID); 
+						
+			logOnConsole('Rows before populating table: ' + $mainTable.find('tbody tr').length);
+			
+			$mainTable.find('tbody').empty();
+			
+			logOnConsole('Rows before clearing table: ' + $mainTable.find('tbody tr').length);			
+			
+			$.each(data.rows, function(index, row) {
+				var newColumns = [];
+				
+				logOnConsole('Creating row: ' + index);
+								
+				$.each(settings.columns, function(index, column) {
+					logOnConsole('Column label: ' + column.label + '. Name: ' + column.name);
 					
+					var newColumn = null;
+					
+					newColumn = row.row[column.name];
+						
+					logOnConsole('Simple Column ' + index + ' - ' + newColumn);
+					
+					newColumns.push(newColumn);
+				}); 
+								
+				methods.addRow({ tableID: tableID, columns: newColumns });
+			});	
+
+			stopTimer('populateTable');
 		};
 		
 		
@@ -3371,131 +3957,282 @@
 		clearMessagesInterval = function(tableID) {
 			loadTableSettings(tableID);
 			
-			clearInterval(settings.fixHeaderOptions.messageLoop);
+			if(!settings.fixHeaderOptions.disableMessages) {
 			
-			settings.fixHeaderOptions.messageLoop = setInterval( function() { updateMessages(tableID); }, settings.fixHeaderOptions.messageLoopInterval);
-			
-			saveTableSettings(tableID);
+				clearInterval(settings.fixHeaderOptions.messageLoop);
+				
+				settings.fixHeaderOptions.messageLoop = setInterval( function() { updateMessages(tableID); }, settings.fixHeaderOptions.messageLoopInterval);
+				
+				saveTableSettings(tableID);
+			}
 		};
 		
 		
 		setNextMessage = function(tableID, message) {
 			loadTableSettings(tableID);
 			
-			var nextMsgIndex = -1;
-			$.each(settings.fixHeaderOptions.messages, function(index, msg) {
-				if(message.type === msg.type) {
-					nextMsgIndex = index;
-				}
-			});
+			if(!settings.fixHeaderOptions.disableMessages) {
 			
-			settings.fixHeaderOptions.nextMessageIndex = nextMsgIndex;
-			
-			saveTableSettings(tableID);			
+				var nextMsgIndex = -1;
+				$.each(settings.fixHeaderOptions.messages, function(index, msg) {
+					if(message.type === msg.type) {
+						nextMsgIndex = index;
+					}
+				});
+				
+				settings.fixHeaderOptions.nextMessageIndex = nextMsgIndex;
+				
+				saveTableSettings(tableID);			
+			}
 		}; 
+				
 		
-		
+		/**
+		* Push a message into the messages loop and update the messages. 
+		*/
 		pushMessage = function(tableID, message) {
 			loadTableSettings(tableID);
 			
-			//console.log('pushing message: ' + message.type);			
-			settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
-				return (msg.type === message.type);
-			}, true);
-			
-			settings.fixHeaderOptions.messages.push(message);
-			
-			saveTableSettings(tableID);
-			
-			setNextMessage(tableID, message);
-			
-			clearMessagesInterval(tableID);
-			
-			updateMessages(tableID);
+			if(!settings.fixHeaderOptions.disableMessages) {			
+				logOnConsole('pushing message: ' + message.type);			
+				settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
+					return (msg.type === message.type);
+				}, true);
+				
+				settings.fixHeaderOptions.messages.push(message);
+				
+				saveTableSettings(tableID);
+				
+				setNextMessage(tableID, message);
+				
+				clearMessagesInterval(tableID);
+				
+				updateMessages(tableID);
+			}
 			
 		}; 
 		
 		
+		/**
+		* Pop out a message from the messages loop and update the messages. 
+		*/ 
 		popMessage = function(tableID, message) {
 			loadTableSettings(tableID);
 			
-			settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
-				return (msg.type === message.type);
-			}, true);
+			if(!settings.fixHeaderOptions.disableMessages) {
 			
-			settings.fixHeaderOptions.nextMessageIndex = 0;
-			
-			saveTableSettings(tableID);
-			
-			clearMessagesInterval(tableID);
-			
-			updateMessages(tableID);
+				settings.fixHeaderOptions.messages = $.grep(settings.fixHeaderOptions.messages, function(msg, msgIndex) {
+					return (msg.type === message.type);
+				}, true);
+				
+				settings.fixHeaderOptions.nextMessageIndex = 0;
+				
+				saveTableSettings(tableID);
+				
+				clearMessagesInterval(tableID);
+				
+				updateMessages(tableID);
+			}
 		}; 
 		
+		/**
+		* Save selection on the current page if any. 
+		*/
+		saveCurrentSelection = function(tableID) {
+			loadTableSettings(tableID);
+			if(settings.paginationOptions.preserveSelection) {
+				var ids = methods.getSelectedRecordsOnPage(null, tableID);
+				
+				if(settings.paginationOptions.resetPreviousSelection) {
+					settings.paginationOptions.previouslySelectedRecords = new Array();
+					settings.paginationOptions.resetPreviousSelection = false;
+				}
+				
+				for(var x=0; x<ids.length; x++) {
+					if($.inArray(ids[x], settings.paginationOptions.previouslySelectedRecords) === -1) {
+						settings.paginationOptions.previouslySelectedRecords.push(ids[x]);
+					}
+				}
+				
+				logOnConsole('Total items selected previously: ' + settings.paginationOptions.previouslySelectedRecords.length);
+				saveTableSettings(tableID);
+			}
+		};
+		
+		/**
+		* Restore selections on previous pages. 
+		*/
+		restorePreviousSelection = function(tableID) {					
+			loadTableSettings(tableID);
+			if(settings.paginationOptions.preserveSelection) {
+				logOnConsole('Restoring: ' + settings.paginationOptions.previouslySelectedRecords.length + ' items.');
+				for(var x=0; x<settings.paginationOptions.previouslySelectedRecords.length; x++) {							
+					$(settings.paginationOptions.getCheckboxSelector(settings.paginationOptions.previouslySelectedRecords[x])).attr('checked', true).trigger('change');
+				}
+			}
+		};
 		
 		
+		/**
+		* Remove the given item from selection. 		
+		*/ 
+		removeItemFromPreviousSelection = function(itemValue, tableID) {
+			loadTableSettings(tableID);
+			if(settings.paginationOptions.preserveSelection) {
+				printArray(settings.paginationOptions.previouslySelectedRecords);
+				var indexOfItem = $.inArray(itemValue, settings.paginationOptions.previouslySelectedRecords);
+				logOnConsole('itemValue: ' + itemValue + '. indexOfItem: ' + indexOfItem);
+				if(indexOfItem !== -1) {
+					settings.paginationOptions.previouslySelectedRecords.splice(indexOfItem, 1);
+					logOnConsole(itemValue + ' removed from previous selection.');
+				}
+				printArray(settings.paginationOptions.previouslySelectedRecords);				
+				saveTableSettings(tableID);
+			}
+		};
 		
 		
+		/**
+		* Print all previously selected items. 
+		*/
+		printArray = function(arr, toStringFunction) {
+			for(var i=0; i<arr.length; i++) {
+				if(toStringFunction) {
+					logOnConsole(toStringFunction(arr[i]));
+				} else {
+					logOnConsole(arr[i] + ' ');
+				}
+			}
+		};
+		
+		
+		/**
+		* Update messages for the table. ^Optimized 
+		*/
 		updateMessages = function(tableID) {
 			loadTableSettings(tableID);
 			
-			var msgs = settings.fixHeaderOptions.messages;
+			if(!settings.fixHeaderOptions.disableMessages) {
 			
-			var numMsgs = msgs.length;
-			
-			//console.log('Total msgs in queue: ' + numMsgs);
-			
-			var $messagesArea = $('#' + settings.fixHeaderOptions.messagesArea);
-			//console.log('messagesArea for: ' + tableID + ' - ' + settings.fixHeaderOptions.messagesArea);
-			
-			
-			if(numMsgs > 0) {		
-				var nextMsgIndex = settings.fixHeaderOptions.nextMessageIndex;
+				var msgs = settings.fixHeaderOptions.messages;
 				
-				//console.log('Showing msg: ' + nextMsgIndex);
+				var numMsgs = msgs.length;
 				
-				$messagesArea.hide();
-				$messagesArea.html(msgs[nextMsgIndex].message);					
-				$messagesArea.fadeIn();
+				//logOnConsole('Total msgs in queue: ' + numMsgs);
 				
-				if(msgs[nextMsgIndex].block) {
-					//console.log('Message: ' + nextMsgIndex + ' blocked');
-					settings.fixHeaderOptions.nextMessageIndex = nextMsgIndex;
+				var $messagesArea = $('#' + settings.fixHeaderOptions.messagesArea);
+				
+				//logOnConsole('messagesArea for: ' + tableID + ' - ' + settings.fixHeaderOptions.messagesArea);
+				
+				if(numMsgs > 0) {
+					var nextMsgIndex = settings.fixHeaderOptions.nextMessageIndex;
+					
+					//logOnConsole('Showing msg: ' + nextMsgIndex);
+					
+					$messagesArea.show().html(msgs[nextMsgIndex].message);					
+					
+					if(msgs[nextMsgIndex].block) {
+						//logOnConsole('Message: ' + nextMsgIndex + ' blocked');
+						settings.fixHeaderOptions.nextMessageIndex = nextMsgIndex;
+					} else {
+						nextMsgIndex = (nextMsgIndex + 1) % numMsgs;
+						settings.fixHeaderOptions.nextMessageIndex = nextMsgIndex;
+					}
+					
+					//logOnConsole('Next msg: ' + nextMsgIndex);
+					
+					if(numMsgs == 1) {
+						clearInterval(settings.fixHeaderOptions.messageLoop);
+					}
+					
+					saveTableSettings(tableID);
 				} else {
-					nextMsgIndex = (nextMsgIndex + 1) % numMsgs;
-					settings.fixHeaderOptions.nextMessageIndex = nextMsgIndex;
-				}
-				
-				//console.log('Next msg: ' + nextMsgIndex);
-				
-				if(numMsgs == 1) {
+					//logOnConsole('No more msgs'); 
+					$messagesArea.empty().hide();
 					clearInterval(settings.fixHeaderOptions.messageLoop);
 				}
 				
 				saveTableSettings(tableID);
+			}	
+		};
+		
+		
+		/**
+		* Returns the selector for all elegible rows for the current table. 
+		*/
+		getAllEligibleRowsFilter = function(tableID) {
+			loadTableSettings(tableID);
+			var eligibleRowsSelector = '';
+			if(settings.masterCheckBoxOptions.required === true) {
+				eligibleRowsSelector = settings.masterCheckBoxOptions.eligibleRowsSelector;
 			} else {
-				//console.log('No more msgs'); 
-				$messagesArea.html('');		
-				$messagesArea.hide();
-				clearInterval(settings.fixHeaderOptions.messageLoop);
+				eligibleRowsSelector = 'tbody tr';
+				if(settings.filterTableOptions.required === true) {
+				 eligibleRowsSelector += '.filteredRow';
+				}				    
+				if(settings.paginationOptions.required === true) {
+				 eligibleRowsSelector += '.currentPageRow';
+				}
 			}
-			
-			saveTableSettings(tableID);
-		};
+			return eligibleRowsSelector;
+		}
+					
 		
-		
-		logOffset = function() {
-			var $elementOffset = $('#pluginTestNode').offset();
-			//console.log('Element Position -- ');
-			//console.log('top: ' + $elementOffset.top);
-			//console.log('left: ' + $elementOffset.left);
-		};
-		
+		/**
+		* Apply styling to table. ^Optimized 
+		*/
 		applyTableStyling = function(tableID) {
-			$('#' + tableID).find('tbody tr').removeClass('evenRow').removeClass('oddRow');
-			$('#' + tableID).find('tbody tr:even').addClass('evenRow');
-			$('#' + tableID).find('tbody tr:odd').addClass('oddRow'); 
-		};		
+			startTimer('Applying style');
+			
+			var rows = $('#' + tableID).find(getAllEligibleRowsFilter(tableID)).get();
+			fastRemoveClass(rows, 'evenRow');
+			fastRemoveClass(rows, 'oddRow');
+			for(var i=0; i<rows.length; i++) {
+				fastAddClass(rows[i], 'evenRow');
+				i++;
+				fastAddClass(rows[i], 'oddRow');
+			}		
+			
+			stopTimer('Applying style');
+		};	
+		
+		
+		/**
+		 * Check if console is available. If yes, print, else ignore.
+		 */
+		logOnConsole = function(msg) {
+			/*if(settings.printLog && console) {
+				console.log(msg);
+			}*/
+		};
+		
+		
+		/**
+		 * Get the type of column from the given Column type ID and DB type ID. 
+		 */
+		getColumnTypeForDB = function(columnTypeID, dbTypeID) {
+			var columnType = 'alphanumeric';
+			var type = Number(columnTypeID);
+			logOnConsole('type: ' + type);
+			if(type == 4 || type == 5 || type == -5) {
+				columnType = 'numeric';
+			} 
+			logOnConsole('columnType: ' + columnType);
+			return columnType;
+		};
+		
+		
+		/**
+		 * Get the description of an AJAX error. 
+		 * @param xhr The jQuery XMLHttpRequest (jqXHR) object. 
+		 * @param textStatus A string describing the type of error that occurred. Possible values null, "timeout", "error", "abort", and "parsererror". 
+		 * @param error Exception object, if an exception occurred.
+		 * @returns {String}
+		 */
+		getAjaxErrorDescription = function(xhr, textStatus, error) {
+			return xhr.responseText; 
+		};
+		
 		
 		/**
 		* This is where calls from pages come. Calls requested functions appropriately. 
