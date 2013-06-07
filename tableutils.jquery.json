@@ -17,12 +17,14 @@
     	"master-checkbox",    		
     	"pagination",
     	"client-side",
-    	"server-side"
+    	"server-side",
+		"dynamic-tables"
     ],
-    "version": "1.1.1",
+    "version": "1.1.2",
 	"homepage": "http://kolgepratik.github.com/tableutils/",
 	"docs": "https://github.com/kolgepratik/tableutils/wiki/tableutils-Documentation", 
 	"demo": "http://kolgepratik.github.com/tableutils/demo.html",
+	"bugs": "https://github.com/kolgepratik/tableutils/issues",
     "author": {
         "name": "Kolge Pratik",
         "url": "http://kolgepratik.wordpress.com/"
