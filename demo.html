@@ -177,7 +177,8 @@
 		function paginate() {
 			$('#paginateMe').tableutils( {
 				fixHeader: { width: 1000, height: 200 }, 				 
-				paginate: { type: 'numeric', pageSize: 2 }
+				paginate: { type: 'numeric', pageSize: 2 },
+				columns: [ { label: 'First Name' }, { label: 'Last Name' }, { label: 'Concept' }, { label: 'Rating' }, { label: 'AKA' } ]
 			} );
 			
 			$('#paginate').hide();
@@ -546,7 +547,7 @@
 				<pre class="code" style="display:none; height: 250px;">
 	$('#selectMyRecords').tableutils( {
 		fixHeader: { width: 1000, height: 200 }, 				 
-		masterCheckBox: { columnNumber: 1 },  
+		masterCheckBox: { columnIndex: 1 },  
 		rowSelect: { columnIndex: 1 }, 
 		columns: [ 
 		       { label: 'ID' }, 
@@ -640,7 +641,8 @@
 				<pre class="code" style="display:none; height: 100px;">
 	$('#paginateMe').tableutils( {
 		fixHeader: { width: 1000, height: 200 }, 				 
-		paginate: { type: 'numeric', pageSize: 2 }
+		paginate: { type: 'numeric', pageSize: 2 },
+		columns: [ { label: 'First Name' }, { label: 'Last Name' }, { label: 'Concept' }, { label: 'Rating' }, { label: 'AKA' } ]
 	} );
 				</pre>
 			</li>
