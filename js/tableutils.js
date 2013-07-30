@@ -667,7 +667,7 @@
 					// Pagination. 
 					if(settings.paginationOptions.required === true) {
 						logOnConsole('Updating pagination');
-						
+						createLinks(tableID);
 						fastAddClass($this.find('tbody tr').get(), 'currentPageRow');
 					}
 				});
