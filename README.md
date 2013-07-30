@@ -17,3 +17,7 @@ Issues: https://github.com/kolgepratik/tableutils/issues
 FAQs, Tips and Tricks: https://github.com/kolgepratik/tableutils/wiki/FAQs 
 
 Change log: https://github.com/kolgepratik/tableutils/wiki/Change-log
+
+Donate to keep the plugin running: 
+<a href='http://www.pledgie.com/campaigns/21196'><img alt='Click here to lend your support to: Donate to tableutils and make a donation at www.pledgie.com !' src='http://www.pledgie.com/campaigns/21196.png?skin_name=chrome' border='0' /></a>
+
