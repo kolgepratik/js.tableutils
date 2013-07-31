@@ -667,9 +667,9 @@
 					// Pagination. 
 					if(settings.paginationOptions.required === true) {
 						logOnConsole('Updating pagination');
+						//fastAddClass($this.find('tbody tr').get(), 'currentPageRow');
 						settings.paginationOptions.linksCreated = false;
-						resetToFirstPage(tableID);
-						fastAddClass($this.find('tbody tr').get(), 'currentPageRow');
+						resetToFirstPage(tableID);						
 					}
 				});
 				
