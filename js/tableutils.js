@@ -4194,6 +4194,14 @@
 				fastAddClass(rows[i], 'oddRow');
 			}		
 			
+			// If the wrapper is wider than the table, then the table has a scrollbar
+			// In this case, if we have a fixed header, we pad it to the width of the scrollbar
+			var scrollWidth = $('#mainTableWrapper_' + tableID).width() - $('#' + tableID).width();
+			if (scrollWidth > 0) {
+			    $('#fixedHeader_' + tableID).css({ 'padding-right': scrollWidth + 'px' });
+			} else {
+			    $('#fixedHeader_' + tableID).css({ 'padding-right': '0px' });
+			}
 			stopTimer('Applying style');
 		};	
 		
