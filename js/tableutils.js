@@ -104,7 +104,8 @@
 					preserveSelection: false, 
 					previouslySelectedRecords: [], 
 					resetPreviousSelection: false, 
-					message: { type: 'pagination', message: '' }					
+					dynamicTypeChange: true,
+					message: { type: 'pagination', message: '' }				
 				},
 			
 			// Options for new record insertion.
@@ -895,6 +896,44 @@
 								
 								// Initialize the DatePicker. 
 								$filterElement.datepicker(opts);								
+							} else if(columnTypes[index].type === 'minDateFilter') {	
+								// Else if its a 'Date' filter, create a text-box for the filter. 							
+								$filterElement = $('<input type="text" style="width: 100%;">').attr('id', 'filter_' + tableID + '_' + index).addClass('tableUtils_dateFilter');
+																
+								// Bind 'keyup' event handler to the filter. 
+								$filterElement.on('keyup', function() {
+									updateFilter(tableID, index, $(this).val(), 'minDateFilter');
+								});
+								
+								// We use the jQuery Ui's DatePicker. Configure the DatePicker. 
+								var opts = { onSelect: function(dateText) {									
+									updateFilter(tableID, index, dateText, 'minDateFilter');
+								}};
+								
+								// If the user has supplied his own options for the DatePicker, use them. 
+								$.extend(opts, columnTypes[index].options);		
+								
+								// Initialize the DatePicker. 
+								$filterElement.datepicker(opts);								
+							} else if(columnTypes[index].type === 'maxDateFilter') {	
+								// Else if its a 'Date' filter, create a text-box for the filter. 							
+								$filterElement = $('<input type="text" style="width: 100%;">').attr('id', 'filter_' + tableID + '_' + index).addClass('tableUtils_dateFilter');
+																
+								// Bind 'keyup' event handler to the filter. 
+								$filterElement.on('keyup', function() {
+									updateFilter(tableID, index, $(this).val(), 'maxDateFilter');
+								});
+								
+								// We use the jQuery Ui's DatePicker. Configure the DatePicker. 
+								var opts = { onSelect: function(dateText) {									
+									updateFilter(tableID, index, dateText, 'maxDateFilter');
+								}};
+								
+								// If the user has supplied his own options for the DatePicker, use them. 
+								$.extend(opts, columnTypes[index].options);		
+								
+								// Initialize the DatePicker. 
+								$filterElement.datepicker(opts);								
 							}
 						} else {
 							// Else if the filter is not specified by an Object 
@@ -937,6 +976,38 @@
 								// We use the jQuery Ui's DatePicker. Configure the DatePicker. 
 								var opts = { onSelect: function(dateText) {									
 									updateFilter(tableID, index, dateText, 'dateFilter');
+								}};
+								
+								// Initialize the DatePicker. 
+								$filterElement.datepicker(opts);								
+							} else if(columnTypes[index] === 'minDateFilter') {
+								// Else if its a 'Date' filter, create a text-box for the filter. 
+								$filterElement = $('<input type="text" style="width: 100%;">').attr('id', 'filter_' + tableID + '_' + index).addClass('tableUtils_dateFilter');
+								
+								// Bind 'keyup' event handler to the filter. 
+								$filterElement.on('keyup', function() {
+									updateFilter(tableID, index, $(this).val(), 'minDateFilter');
+								});
+								
+								// We use the jQuery Ui's DatePicker. Configure the DatePicker. 
+								var opts = { onSelect: function(dateText) {									
+									updateFilter(tableID, index, dateText, 'minDateFilter');
+								}};
+								
+								// Initialize the DatePicker. 
+								$filterElement.datepicker(opts);								
+							} else if(columnTypes[index] === 'maxDateFilter') {
+								// Else if its a 'Date' filter, create a text-box for the filter. 
+								$filterElement = $('<input type="text" style="width: 100%;">').attr('id', 'filter_' + tableID + '_' + index).addClass('tableUtils_dateFilter');
+								
+								// Bind 'keyup' event handler to the filter. 
+								$filterElement.on('keyup', function() {
+									updateFilter(tableID, index, $(this).val(), 'maxDateFilter');
+								});
+								
+								// We use the jQuery Ui's DatePicker. Configure the DatePicker. 
+								var opts = { onSelect: function(dateText) {									
+									updateFilter(tableID, index, dateText, 'maxDateFilter');
 								}};
 								
 								// Initialize the DatePicker. 
@@ -1379,54 +1450,60 @@
 				
 				$paginationStats.append($gotoPage, $pageSelect);				
 				
-				var $changePaginationTypeSpan = $('<span class="tableUtils_label">&nbsp;&nbsp;Type: </span>');
+				/* Change pagination type dynamically. */
+				if(settings.paginationOptions.dynamicTypeChange) {
 				
-				var $changePaginationTypeSelect = $('<select></select>').attr('id', 'paginationTypeSelect_' + tableID);
-				$changePaginationTypeSelect.append($('<option></option>', { text: 'Change Pagination Type', value: '', selected: true }));
-				$changePaginationTypeSelect.append($('<option></option>', { text: 'Numeric', value: 'numeric' }));
-				$changePaginationTypeSelect.append($('<option></option>', { text: 'Alphabetic', value: 'alphabetic' }));
-				$changePaginationTypeSelect.append($('<option></option>', { text: 'AlphaNumeric', value: 'alphanumeric' }));
-				$changePaginationTypeSelect.on('change', function() {					
-					if($(this).find('option:selected').val() !== 'numeric') {						
-						$('#paginationColumnSpan_' + tableID).show();
-						$('#paginationColumnSelect_' + tableID).show();						
-					} else {
-						loadTableSettings(tableID);
-						settings.paginationOptions.type = $(this).find('option:selected').val();
+					var $changePaginationTypeSpan = $('<span class="tableUtils_label">&nbsp;&nbsp;Type: </span>');
+					
+					var $changePaginationTypeSelect = $('<select></select>').attr('id', 'paginationTypeSelect_' + tableID);
+					$changePaginationTypeSelect.append($('<option></option>', { text: 'Change Pagination Type', value: '', selected: true }));
+					$changePaginationTypeSelect.append($('<option></option>', { text: 'Numeric', value: 'numeric' }));
+					$changePaginationTypeSelect.append($('<option></option>', { text: 'Alphabetic', value: 'alphabetic' }));
+					$changePaginationTypeSelect.append($('<option></option>', { text: 'AlphaNumeric', value: 'alphanumeric' }));
+					$changePaginationTypeSelect.on('change', function() {					
+						if($(this).find('option:selected').val() !== 'numeric') {						
+							$('#paginationColumnSpan_' + tableID).show();
+							$('#paginationColumnSelect_' + tableID).show();						
+						} else {
+							loadTableSettings(tableID);
+							settings.paginationOptions.type = $(this).find('option:selected').val();
+							$(this).val('');
+							settings.paginationOptions.linksCreated = false;
+							saveTableSettings(tableID);
+							resetToFirstPage(tableID);
+						}
+					});
+					
+					$paginationStats.append($changePaginationTypeSpan, $changePaginationTypeSelect);
+				
+				
+					var $paginationColumnSpan = $('<span class="tableUtils_label" id="paginationColumnSpan_' + tableID + '">&nbsp;&nbsp;Column: </span>').hide();
+					
+					var $paginationColumnSelect = $('<select></select>').attr('id', 'paginationColumnSelect_' + tableID).hide();
+					$paginationColumnSelect.append($('<option></option>', { text: 'Select Pagiantion Column', value: '', selected: true }));
+					$.each(settings.columns, function(index, element) {
+						if(!element.noAlphabeticPagination) {
+							$paginationColumnSelect.append($('<option></option>', { text: element.label, value: index }));
+						}
+					});
+					
+					$paginationColumnSelect.on('change', function() {
+						loadTableSettings(tableID);					
+						settings.paginationOptions.type = $('#paginationTypeSelect_' + tableID).find('option:selected').val();
+						settings.paginationOptions.columnIndex = Number($(this).find('option:selected').val()) + 1;
+						$('#paginationTypeSelect_' + tableID).val('');
 						$(this).val('');
 						settings.paginationOptions.linksCreated = false;
 						saveTableSettings(tableID);
+						$(this).hide();
+						$('#paginationColumnSpan_' + tableID).hide();
+						logOnConsole('settings.paginationOptions.type: ' + settings.paginationOptions.type);
+						logOnConsole('Setting columnIndex: ' + settings.paginationOptions.columnIndex);
 						resetToFirstPage(tableID);
-					}
-				});
-				
-				$paginationStats.append($changePaginationTypeSpan, $changePaginationTypeSelect);
-				
-				var $paginationColumnSpan = $('<span class="tableUtils_label" id="paginationColumnSpan_' + tableID + '">&nbsp;&nbsp;Column: </span>').hide();
-				
-				var $paginationColumnSelect = $('<select></select>').attr('id', 'paginationColumnSelect_' + tableID).hide();
-				$paginationColumnSelect.append($('<option></option>', { text: 'Select Pagiantion Column', value: '', selected: true }));
-				$.each(settings.columns, function(index, element) {
-					$paginationColumnSelect.append($('<option></option>', { text: element.label, value: index }));
-				});
-				
-				$paginationColumnSelect.on('change', function() {
-					loadTableSettings(tableID);					
-					settings.paginationOptions.type = $('#paginationTypeSelect_' + tableID).find('option:selected').val();
-					settings.paginationOptions.columnIndex = Number($(this).find('option:selected').val()) + 1;
-					$('#paginationTypeSelect_' + tableID).val('');
-					$(this).val('');
-					settings.paginationOptions.linksCreated = false;
-					saveTableSettings(tableID);
-					$(this).hide();
-					$('#paginationColumnSpan_' + tableID).hide();
-					logOnConsole('settings.paginationOptions.type: ' + settings.paginationOptions.type);
-					logOnConsole('Setting columnIndex: ' + settings.paginationOptions.columnIndex);
-					resetToFirstPage(tableID);
-				});
-				
-				$paginationStats.append($paginationColumnSpan, $paginationColumnSelect); 
-				
+					});
+					
+					$paginationStats.append($paginationColumnSpan, $paginationColumnSelect); 
+				}
 				
 				$paginationStats.append($('<span class="tableUtils_label">').attr('id', 'pageItemsInfo_' + tableID)); 
 				
@@ -1510,7 +1587,8 @@
 					sortingDetails: settings.sortOptions.sortingState,	 				
 					filteringDetails: settings.filterTableOptions.activeFilters,
 					type: settings.paginationOptions.type,
-					columnIndex: settings.paginationOptions.columnIndex
+					columnIndex: settings.paginationOptions.columnIndex,
+					columnName: settings.columns[settings.paginationOptions.columnIndex - 1].value
 				};				
 				
 				return currentPageInfo;
@@ -2630,11 +2708,23 @@
 			if(elements) {
 				var elmt = elements.jquery ? elements.get() : elements;
 				if(elmt instanceof Array) {
-					for(var i=0; i<elmt.length; i++) {
-						elmt[i].style.display = 'block';
+					var elementsLength = elmt.length;
+					var elementDisplayStyle = 'block';
+					if(elementsLength > 0) {
+						if($(elmt[0]).is('tr')) {
+							elementDisplayStyle = 'table-row';
+						}
+						
+						for(var i=0; i<elementsLength; i++) {
+							elmt[i].style.display = elementDisplayStyle;
+						}
 					}
 				} else {
-					elmt.style.display = 'block';
+					if($(elmt).is('tr')) {
+						elmt.style.display = 'table-row';
+					} else {
+						elmt.style.display = 'block';
+					}
 				}
 			}	
 			stopTimer('fastShow');			
@@ -3857,6 +3947,23 @@
 		};
 		
 		
+		getIndexedProperty = function(obj, propString) {
+			if (!propString) { 
+				return obj;
+			} else {
+				var prop, props = propString.split('.');
+
+				for (var i = 0, iLen = props.length - 1; i < iLen; i++) {
+					prop = props[i];
+					if (typeof obj == 'object' && obj !== null && prop in obj) {
+						obj = obj[prop];
+					} else {
+						break;
+					}
+				}
+				return obj[props[i]];
+			}
+		};
 		/**
 		* Populates the table with newly fetced rows. 
 		*/
@@ -3873,42 +3980,48 @@
 			
 			logOnConsole('Rows before clearing table: ' + $mainTable.find('tbody tr').length);
 			
-			$.each(data, function(index, row) {
-				var newColumns = [];
-				
-				logOnConsole('Creating row: ' + index);
-				
-				$.each(settings.columns, function(index, column) {
-					logOnConsole('Column label: ' + column.label + '. Name: ' + column.name);
+			if(data && data.length > 0) {			
+				$.each(data, function(index, row) {
+					var newColumns = [];
 					
-					var newColumn = null;
+					logOnConsole('Creating row: ' + index);
 					
-					var columnData = '';
-					if(column.generate) {
-						columnData = column.generate(row);
-					} else {
-						columnData = row[column.name];
-					}
-					
-					if(column.style) {
-						newColumn = new Object();
-						newColumn.html = columnData;
-						if(column.style) {
-							newColumn.props = column.style;
+					$.each(settings.columns, function(index, column) {
+						logOnConsole('Column label: ' + column.label + '. Name: ' + column.name);
+						
+						var newColumn = null;
+						
+						var columnData = '';
+						if(column.generate) {
+							columnData = column.generate(row);
+						} else {
+							if(column.name.indexOf('.') != -1) {
+								columnData = getIndexedProperty(row, column.name);
+							} else {
+								columnData = row[column.name];
+							}
 						}
 						
-						logOnConsole('Styled Column ' + index + ' - ' + columnData);
-					} else {
-						newColumn = columnData;
+						if(column.style) {
+							newColumn = new Object();
+							newColumn.html = columnData;
+							if(column.style) {
+								newColumn.props = column.style;
+							}
+							
+							logOnConsole('Styled Column ' + index + ' - ' + columnData);
+						} else {
+							newColumn = columnData;
+							
+							logOnConsole('Simple Column ' + index + ' - ' + columnData);
+						}
 						
-						logOnConsole('Simple Column ' + index + ' - ' + columnData);
-					}
-					
-					newColumns.push(newColumn);
-				}); 
-								
-				methods.addRow({ tableID: tableID, columns: newColumns });
-			});	
+						newColumns.push(newColumn);
+					}); 
+									
+					methods.addRow({ tableID: tableID, columns: newColumns });
+				});	
+			}
 
 			stopTimer('populateTable');
 		};
