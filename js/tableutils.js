@@ -39,7 +39,7 @@
 			fixHeaderOptions: { 
 					required: false, 
 					height: 200, 
-					width: 600,					
+				//	width: 600,					
 					disableMessages: false,
 					messages: [], 
 					nextMessageIndex: 0,
