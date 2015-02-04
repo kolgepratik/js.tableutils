@@ -39,7 +39,7 @@
 			fixHeaderOptions: { 
 					required: false, 
 					height: 200, 
-				//	width: 600,					
+					width: 600,					
 					disableMessages: false,
 					messages: [], 
 					nextMessageIndex: 0,
@@ -4296,7 +4296,7 @@
 		* Apply styling to table. ^Optimized 
 		*/
 		applyTableStyling = function(tableID) {
-			startTimer('Applying style');
+		/*	startTimer('Applying style');
 			
 			var rows = $('#' + tableID).find(getAllEligibleRowsFilter(tableID)).get();
 			fastRemoveClass(rows, 'evenRow');
@@ -4307,7 +4307,9 @@
 				fastAddClass(rows[i], 'oddRow');
 			}		
 			
-			stopTimer('Applying style');
+			stopTimer('Applying style');*/
+			alert(tableID);
+			$(document).trigger('alwaysMethod');
 		};	
 		
 		
